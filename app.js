@@ -1256,23 +1256,20 @@ function renderMangaList() {
       const catalogChapters = state.chapterCatalog
         .filter((chapter) => chapter.mangaKey === summary.mangaKey)
         .sort((a, b) => Number(a.chapterNumber) - Number(b.chapterNumber));
-      const actionButtons = catalogChapters.length
-        ? catalogChapters
-            .map((chapter) => {
-              const completed = summary.chapterNumbers.includes(Number(chapter.chapterNumber));
-              return `
-                <button
-                  class="${completed ? "ghost-button" : "primary-action"}"
-                  type="button"
-                  data-register-chapter-id="${chapter.id}"
-                  ${completed ? "disabled" : ""}
-                >
-                  ${completed ? "Cap. " + chapter.chapterNumber + " registrado" : "Registrar Cap. " + chapter.chapterNumber}
-                </button>
-              `;
-            })
-            .join("")
-        : "<span class=\"muted\">Sem capitulos no catalogo.</span>";
+      const nextCatalogChapter = catalogChapters.find((chapter) => {
+        return !summary.chapterNumbers.includes(Number(chapter.chapterNumber));
+      });
+      const actionButton = nextCatalogChapter
+        ? `
+          <button
+            class="primary-action"
+            type="button"
+            data-register-chapter-id="${nextCatalogChapter.id}"
+          >
+            Registrar Cap. ${nextCatalogChapter.chapterNumber}
+          </button>
+        `
+        : `<span class="muted">${catalogChapters.length ? "Todos os capitulos do catalogo foram registrados." : "Sem capitulos no catalogo."}</span>`;
 
       return `
         <article class="manga-card">
@@ -1292,7 +1289,7 @@ function renderMangaList() {
               ${chapterTags}
             </div>
             <div class="manga-actions">
-              ${actionButtons}
+              ${actionButton}
             </div>
           </div>
         </article>
