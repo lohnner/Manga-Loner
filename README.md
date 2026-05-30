@@ -21,28 +21,33 @@ Nesse modo os dados ficam no arquivo `manga_loner.db` e todos usam o mesmo ranki
 
 Publique esta pasta como repositorio pelo GitHub Desktop. Depois do primeiro push na branch `main`, o workflow em `.github/workflows/pages.yml` envia o site para GitHub Pages.
 
-No GitHub Pages o site e estatico. Para cadastro e ranking online entre jogadores, configure o Supabase abaixo.
+No GitHub Pages o site e estatico. Para cadastro e ranking online entre jogadores, configure o Firebase abaixo.
 
-## Banco online gratis com Supabase
+## Banco online gratis com Firebase
 
-1. Crie um projeto gratis em https://supabase.com.
-2. Abra `SQL Editor`, cole o conteudo de `supabase-schema.sql` e execute.
-3. Em `Authentication > Providers > Email`, deixe email/senha ativado. Para testes rapidos, voce pode desativar confirmacao de email.
-4. Em `Project Settings > API`, copie `Project URL` e `anon public key`.
-5. Cole esses valores em `supabase-config.js`:
+1. Crie um projeto gratis em https://console.firebase.google.com.
+2. Ative `Authentication > Sign-in method > Email/Password`.
+3. Ative `Firestore Database`.
+4. Em `Firestore Database > Rules`, cole o conteudo de `firebase-firestore.rules` e publique.
+5. Em `Project settings > General > Your apps`, crie um app Web e copie o `firebaseConfig`.
+6. Cole esses valores em `firebase-config.js`:
 
 ```js
-window.MANGA_LONER_SUPABASE = {
-  url: "https://SEU-PROJETO.supabase.co",
-  anonKey: "SUA-ANON-PUBLIC-KEY",
+window.MANGA_LONER_FIREBASE_CONFIG = {
+  apiKey: "SUA_API_KEY",
+  authDomain: "SEU_PROJETO.firebaseapp.com",
+  projectId: "SEU_PROJETO",
+  storageBucket: "SEU_PROJETO.appspot.com",
+  messagingSenderId: "SEU_SENDER_ID",
+  appId: "SEU_APP_ID",
 };
 ```
 
-6. Faca commit e push. O GitHub Pages vai atualizar o site.
+7. Faca commit e push. O GitHub Pages vai atualizar o site.
 
-O XP vem da tabela `chapter_catalog`. Para adicionar ou alterar XP, edite essa tabela no Supabase. Os usuarios so registram capitulos existentes no catalogo, e o ranking soma o XP do banco.
+O XP vem do catalogo em `app.js`. Os usuarios so clicam em `Registrar Cap. 1`, `Registrar Cap. 2` e assim por diante. Para adicionar ou alterar XP, edite `defaultChapterCatalog` em `app.js` e publique novamente.
 
-No modo Supabase, o cadastro continua pedindo email, login e senha; para entrar, use o email cadastrado.
+No modo Firebase, o cadastro continua pedindo email, login e senha; para entrar, use o email cadastrado.
 
 ## O que foi criado
 
@@ -53,7 +58,7 @@ No modo Supabase, o cadastro continua pedindo email, login e senha; para entrar,
 - Aba Mangas para registrar capitulos lidos manualmente.
 - Aba Ranking com usuarios ordenados por XP.
 - Biblioteca inicial com Gachiakuta, One Piece, Naruto e Alien Headbutt.
-- Integracao opcional com Supabase para contas e ranking online.
+- Integracao opcional com Firebase para contas e ranking online.
 - Backup JSON na aba Banco.
 
 ## Observacao

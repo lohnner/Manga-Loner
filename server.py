@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -131,11 +131,11 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path.startswith("/api/users/"):
-            self.update_user(parsed.path.rsplit("/", 1)[-1])
+            self.update_user(unquote(parsed.path.rsplit("/", 1)[-1]))
             return
 
         if parsed.path.startswith("/api/chapters/"):
-            self.upsert_chapter(parsed.path.rsplit("/", 1)[-1])
+            self.upsert_chapter(unquote(parsed.path.rsplit("/", 1)[-1]))
             return
 
         self.send_json({"error": "Rota nao encontrada."}, HTTPStatus.NOT_FOUND)
@@ -154,7 +154,7 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
             return
 
         if path.startswith("/api/users/"):
-            self.get_user(path.rsplit("/", 1)[-1])
+            self.get_user(unquote(path.rsplit("/", 1)[-1]))
             return
 
         if path == "/api/chapters":
@@ -162,7 +162,7 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
             return
 
         if path.startswith("/api/chapters/"):
-            self.get_chapter(path.rsplit("/", 1)[-1])
+            self.get_chapter(unquote(path.rsplit("/", 1)[-1]))
             return
 
         self.send_json({"error": "Rota nao encontrada."}, HTTPStatus.NOT_FOUND)

@@ -1,3 +1,22 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  query as firestoreQuery,
+  setDoc,
+  where,
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
 const DB_NAME = "manga-loner-db";
 const DB_VERSION = 1;
 const ACTIVE_USER_KEY = "manga-loner-db:active-user";
@@ -104,6 +123,7 @@ const avatarCatalog = [
 
 const state = {
   db: null,
+  firebase: null,
   supabase: null,
   user: null,
   chapters: [],
@@ -201,6 +221,21 @@ function isApiDatabase() {
   return state.db?.type === "api";
 }
 
+function getFirebaseSettings() {
+  const config = window.MANGA_LONER_FIREBASE_CONFIG || {};
+  const requiredFields = ["apiKey", "authDomain", "projectId", "appId"];
+  const hasRequiredFields = requiredFields.every((field) => {
+    const value = String(config[field] || "").trim();
+    return value && !value.includes("COLE_") && !value.includes("SEU_");
+  });
+
+  return hasRequiredFields ? config : null;
+}
+
+function isFirebaseDatabase() {
+  return state.db?.type === "firebase";
+}
+
 function getSupabaseSettings() {
   const settings = window.MANGA_LONER_SUPABASE || {};
   const url = String(settings.url || "").trim();
@@ -218,6 +253,18 @@ function isSupabaseDatabase() {
 }
 
 async function openDatabase() {
+  const firebaseSettings = getFirebaseSettings();
+
+  if (firebaseSettings) {
+    const app = initializeApp(firebaseSettings);
+    state.firebase = {
+      app,
+      auth: getAuth(app),
+      firestore: getFirestore(app),
+    };
+    return { type: "firebase" };
+  }
+
   const supabaseSettings = getSupabaseSettings();
 
   if (supabaseSettings && window.supabase?.createClient) {
@@ -490,6 +537,90 @@ async function ensureSupabaseProfile(authUser) {
   return mapSupabaseProfile(profile, authUser);
 }
 
+function getChapterByCatalogId(chapterId) {
+  return state.chapterCatalog.find((chapter) => chapter.id === chapterId)
+    || defaultChapterCatalog.find((chapter) => chapter.id === chapterId);
+}
+
+function mapFirebaseProfile(profileData, authUser) {
+  return {
+    id: authUser.uid,
+    displayName: profileData?.displayName || authUser.displayName || "Leitor",
+    email: authUser.email || "",
+    login: profileData?.login || authUser.email?.split("@")[0] || "leitor",
+    avatarId: profileData?.avatarId || DEFAULT_AVATAR_ID,
+    createdAt: profileData?.createdAt || new Date().toISOString(),
+    updatedAt: profileData?.updatedAt || profileData?.createdAt || new Date().toISOString(),
+  };
+}
+
+function mapFirebaseChapter(docSnapshot) {
+  const data = docSnapshot.data();
+  const catalogChapter = getChapterByCatalogId(data.chapterId);
+
+  if (!catalogChapter) {
+    return null;
+  }
+
+  return {
+    id: docSnapshot.id,
+    userId: data.userId,
+    userMangaKey: `${data.userId}:${catalogChapter.mangaKey}`,
+    mangaKey: catalogChapter.mangaKey,
+    mangaTitle: catalogChapter.mangaTitle,
+    cover: catalogChapter.cover || "",
+    chapterNumber: Number(catalogChapter.chapterNumber),
+    pages: Number(catalogChapter.pages || catalogChapter.xp || 0),
+    xp: Number(catalogChapter.xp || 0),
+    readAt: data.readAt || data.createdAt || new Date().toISOString(),
+    createdAt: data.createdAt || data.readAt || new Date().toISOString(),
+    updatedAt: data.createdAt || data.readAt || new Date().toISOString(),
+    chapterCatalogId: catalogChapter.id,
+  };
+}
+
+async function ensureFirebaseProfile(authUser, fallback = {}) {
+  const profileRef = doc(state.firebase.firestore, "profiles", authUser.uid);
+  const profileSnapshot = await getDoc(profileRef);
+
+  if (profileSnapshot.exists()) {
+    return mapFirebaseProfile(profileSnapshot.data(), authUser);
+  }
+
+  const now = new Date().toISOString();
+  const login = normalizeLogin(fallback.login || authUser.email?.split("@")[0] || `leitor-${authUser.uid.slice(0, 6)}`);
+  const profile = {
+    displayName: String(fallback.displayName || login || "Leitor").trim(),
+    email: authUser.email || fallback.email || "",
+    login,
+    avatarId: DEFAULT_AVATAR_ID,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await setDoc(profileRef, profile);
+  return mapFirebaseProfile(profile, authUser);
+}
+
+async function loginExistsInFirebase(login) {
+  const loginQuery = firestoreQuery(
+    collection(state.firebase.firestore, "profiles"),
+    where("login", "==", normalizeLogin(login))
+  );
+  const result = await getDocs(loginQuery);
+
+  return !result.empty;
+}
+
+function getFirebaseCurrentUser() {
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(state.firebase.auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
 function normalizeLogin(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -735,7 +866,17 @@ async function refreshChapters(shouldRender = true) {
     return;
   }
 
-  if (isSupabaseDatabase()) {
+  if (isFirebaseDatabase()) {
+    const readQuery = firestoreQuery(
+      collection(state.firebase.firestore, "readChapters"),
+      where("userId", "==", state.user.id)
+    );
+    const result = await getDocs(readQuery);
+    state.chapters = result.docs
+      .map(mapFirebaseChapter)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
+  } else if (isSupabaseDatabase()) {
     const { data, error } = await state.supabase
       .from("read_chapters")
       .select(`
@@ -772,7 +913,60 @@ async function refreshChapters(shouldRender = true) {
 }
 
 async function refreshRanking(shouldRender = true) {
-  if (isSupabaseDatabase()) {
+  if (isFirebaseDatabase()) {
+    const [profileSnapshots, readSnapshots] = await Promise.all([
+      getDocs(collection(state.firebase.firestore, "profiles")),
+      getDocs(collection(state.firebase.firestore, "readChapters")),
+    ]);
+    const statsByUser = new Map();
+
+    profileSnapshots.docs.forEach((profileDoc) => {
+      const profile = profileDoc.data();
+      statsByUser.set(profileDoc.id, {
+        id: profileDoc.id,
+        displayName: profile.displayName || "Leitor",
+        login: profile.login || "leitor",
+        avatarId: profile.avatarId || DEFAULT_AVATAR_ID,
+        createdAt: profile.createdAt,
+        totalXp: 0,
+        pages: 0,
+        chapters: 0,
+        mangas: new Set(),
+        lastReadAt: "",
+      });
+    });
+
+    readSnapshots.docs.forEach((readDoc) => {
+      const read = readDoc.data();
+      const stats = statsByUser.get(read.userId);
+      const catalogChapter = getChapterByCatalogId(read.chapterId);
+
+      if (!stats || !catalogChapter) {
+        return;
+      }
+
+      stats.totalXp += Number(catalogChapter.xp || 0);
+      stats.pages += Number(catalogChapter.pages || catalogChapter.xp || 0);
+      stats.chapters += 1;
+      stats.mangas.add(catalogChapter.mangaKey);
+
+      if (!stats.lastReadAt || new Date(read.readAt || read.createdAt || 0) > new Date(stats.lastReadAt)) {
+        stats.lastReadAt = read.readAt || read.createdAt || "";
+      }
+    });
+
+    state.ranking = Array.from(statsByUser.values())
+      .map((entry) => ({ ...entry, mangas: entry.mangas.size }))
+      .sort((a, b) => {
+        return (
+          b.totalXp - a.totalXp ||
+          b.chapters - a.chapters ||
+          b.pages - a.pages ||
+          new Date(b.lastReadAt || 0) - new Date(a.lastReadAt || 0)
+        );
+      })
+      .map((entry, index) => ({ ...entry, position: index + 1 }));
+  } else if (isSupabaseDatabase()) {
     const { data, error } = await state.supabase.rpc("get_ranking");
 
     if (error) {
@@ -1059,12 +1253,26 @@ function renderMangaList() {
       const chapterTags = chapters.length
         ? chapters.map((number) => `<span>${number}</span>`).join("")
         : "<span>Sem capitulos</span>";
-      const buttonLabel = summary.catalogOnly ? "Registrar cap. 1" : "Proximo capitulo";
-      const nextCatalogChapter = state.chapterCatalog.find((chapter) => {
-        return chapter.mangaKey === summary.mangaKey && !summary.chapterNumbers.includes(Number(chapter.chapterNumber));
-      });
-      const nextChapter = nextCatalogChapter?.chapterNumber || (summary.catalogOnly ? 1 : summary.nextChapter);
-      const nextXp = nextCatalogChapter?.xp || summary.defaultPages;
+      const catalogChapters = state.chapterCatalog
+        .filter((chapter) => chapter.mangaKey === summary.mangaKey)
+        .sort((a, b) => Number(a.chapterNumber) - Number(b.chapterNumber));
+      const actionButtons = catalogChapters.length
+        ? catalogChapters
+            .map((chapter) => {
+              const completed = summary.chapterNumbers.includes(Number(chapter.chapterNumber));
+              return `
+                <button
+                  class="${completed ? "ghost-button" : "primary-action"}"
+                  type="button"
+                  data-register-chapter-id="${chapter.id}"
+                  ${completed ? "disabled" : ""}
+                >
+                  ${completed ? "Cap. " + chapter.chapterNumber + " registrado" : "Registrar Cap. " + chapter.chapterNumber}
+                </button>
+              `;
+            })
+            .join("")
+        : "<span class=\"muted\">Sem capitulos no catalogo.</span>";
 
       return `
         <article class="manga-card">
@@ -1084,24 +1292,7 @@ function renderMangaList() {
               ${chapterTags}
             </div>
             <div class="manga-actions">
-              <button
-                class="primary-action"
-                type="button"
-                data-prefill-title="${escapeHtml(summary.title)}"
-                data-prefill-chapter="${nextChapter}"
-                data-prefill-pages="${nextXp}"
-              >
-                ${buttonLabel}
-              </button>
-              <button
-                class="ghost-button"
-                type="button"
-                data-prefill-title="${escapeHtml(summary.title)}"
-                data-prefill-chapter="${summary.maxChapter || 1}"
-                data-prefill-pages="${summary.defaultPages}"
-              >
-                Editar
-              </button>
+              ${actionButtons}
             </div>
           </div>
         </article>
@@ -1109,15 +1300,11 @@ function renderMangaList() {
     })
     .join("");
 
-  dom.mangaList.querySelectorAll("[data-prefill-title]").forEach((button) => {
+  dom.mangaList.querySelectorAll("[data-register-chapter-id]").forEach((button) => {
     button.addEventListener("click", () => {
-      prefillChapterForm(
-        button.dataset.prefillTitle,
-        Number(button.dataset.prefillChapter),
-        Number(button.dataset.prefillPages)
-      );
+      registerCatalogChapter(button.dataset.registerChapterId);
     });
-    });
+  });
 }
 
 function renderRanking() {
@@ -1168,7 +1355,11 @@ function renderDatabase() {
     return;
   }
 
-  dom.databaseStatus.textContent = isApiDatabase() ? "Servidor SQLite" : "IndexedDB";
+  dom.databaseStatus.textContent = isFirebaseDatabase()
+    ? "Firebase"
+    : isApiDatabase()
+      ? "Servidor SQLite"
+      : "IndexedDB";
   dom.databaseUser.textContent = `${state.user.displayName} (@${state.user.login})`;
   dom.databaseRecords.textContent = `${state.chapters.length} capitulos`;
   dom.databaseCreated.textContent = formatDate(state.user.createdAt);
@@ -1223,7 +1414,16 @@ async function selectAvatar(avatarId) {
   state.user.avatarId = avatar.id;
   state.user.updatedAt = new Date().toISOString();
 
-  if (isSupabaseDatabase()) {
+  if (isFirebaseDatabase()) {
+    const updatedAt = new Date().toISOString();
+    await setDoc(
+      doc(state.firebase.firestore, "profiles", state.user.id),
+      { avatarId: avatar.id, updatedAt },
+      { merge: true }
+    );
+    state.user.avatarId = avatar.id;
+    state.user.updatedAt = updatedAt;
+  } else if (isSupabaseDatabase()) {
     const { data, error } = await state.supabase
       .from("profiles")
       .update({ avatar_id: avatar.id, updated_at: state.user.updatedAt })
@@ -1291,6 +1491,11 @@ async function handleRegister(event) {
     return;
   }
 
+  if (isFirebaseDatabase()) {
+    await handleFirebaseRegister({ displayName, email, login, password });
+    return;
+  }
+
   if (isSupabaseDatabase()) {
     await handleSupabaseRegister({ displayName, email, login, password });
     return;
@@ -1325,6 +1530,33 @@ async function handleRegister(event) {
 
     console.error(error);
     showToast("Nao consegui criar a conta.");
+  }
+}
+
+async function handleFirebaseRegister({ displayName, email, login, password }) {
+  try {
+    if (await loginExistsInFirebase(login)) {
+      showToast("Esse login ja esta cadastrado.");
+      return;
+    }
+
+    const credential = await createUserWithEmailAndPassword(state.firebase.auth, email, password);
+    const profile = {
+      displayName,
+      email,
+      login: normalizeLogin(login),
+      avatarId: DEFAULT_AVATAR_ID,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(state.firebase.firestore, "profiles", credential.user.uid), profile);
+    dom.registerForm.reset();
+    await showAppForUser(mapFirebaseProfile(profile, credential.user));
+    showToast(`Conta online criada, ${displayName}.`);
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "Nao consegui criar a conta no Firebase.");
   }
 }
 
@@ -1421,6 +1653,11 @@ async function handleLogin(event) {
   const credential = String(formData.get("credential") || "").trim();
   const password = String(formData.get("password") || "");
 
+  if (isFirebaseDatabase()) {
+    await handleFirebaseLogin(credential, password);
+    return;
+  }
+
   if (isSupabaseDatabase()) {
     await handleSupabaseLogin(credential, password);
     return;
@@ -1442,6 +1679,23 @@ async function handleLogin(event) {
 
   await showAppForUser(user);
   showToast(`Bem-vindo, ${user.displayName}.`);
+}
+
+async function handleFirebaseLogin(credential, password) {
+  if (!credential.includes("@")) {
+    showToast("No Firebase, entre usando o email cadastrado.");
+    return;
+  }
+
+  try {
+    const result = await signInWithEmailAndPassword(state.firebase.auth, credential, password);
+    const profile = await ensureFirebaseProfile(result.user);
+    await showAppForUser(profile);
+    showToast(`Bem-vindo, ${profile.displayName}.`);
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "Nao consegui entrar no Firebase.");
+  }
 }
 
 async function handleSupabaseLogin(credential, password) {
@@ -1471,12 +1725,81 @@ async function handleSupabaseLogin(credential, password) {
 }
 
 function logout() {
+  if (isFirebaseDatabase()) {
+    signOut(state.firebase.auth);
+  }
+
   if (isSupabaseDatabase()) {
     state.supabase.auth.signOut();
   }
 
   localStorage.removeItem(ACTIVE_USER_KEY);
   showAuth();
+}
+
+async function registerCatalogChapter(chapterId) {
+  if (!state.user) {
+    showToast("Entre na conta antes de registrar capitulos.");
+    return;
+  }
+
+  const catalogChapter = getChapterByCatalogId(chapterId);
+
+  if (!catalogChapter) {
+    showToast("Esse capitulo ainda nao esta no catalogo de XP.");
+    return;
+  }
+
+  if (isFirebaseDatabase()) {
+    await saveFirebaseChapter(catalogChapter);
+    return;
+  }
+
+  if (isSupabaseDatabase()) {
+    await saveSupabaseChapter(catalogChapter, "");
+    return;
+  }
+
+  await saveLocalCatalogChapter(catalogChapter);
+}
+
+async function saveLocalCatalogChapter(catalogChapter) {
+  const recordId = `${state.user.id}:${catalogChapter.mangaKey}:${catalogChapter.chapterNumber}`;
+  const previous = await getRecord("chapters", recordId);
+
+  if (previous) {
+    showToast("Esse capitulo ja estava registrado. XP nao duplica.");
+    return;
+  }
+
+  const oldLevel = getStats().level;
+  const now = new Date().toISOString();
+  const record = {
+    id: recordId,
+    userId: state.user.id,
+    userMangaKey: `${state.user.id}:${catalogChapter.mangaKey}`,
+    mangaKey: catalogChapter.mangaKey,
+    mangaTitle: catalogChapter.mangaTitle,
+    cover: catalogChapter.cover || "",
+    chapterNumber: catalogChapter.chapterNumber,
+    pages: catalogChapter.pages,
+    xp: catalogChapter.xp,
+    readAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await putRecord("chapters", record);
+  await refreshChapters(false);
+  await refreshRanking(false);
+  renderAll();
+
+  const nextLevel = getStats().level;
+  if (nextLevel > oldLevel) {
+    showToast(`Level up! Voce chegou ao level ${nextLevel}.`);
+  } else {
+    showToast(`Capitulo registrado. +${catalogChapter.xp} XP.`);
+  }
 }
 
 async function handleChapterSubmit(event) {
@@ -1605,6 +1928,44 @@ async function saveSupabaseChapter(catalogChapter, readAtInput) {
   }
 }
 
+async function saveFirebaseChapter(catalogChapter) {
+  const oldLevel = getStats().level;
+  const readId = `${state.user.id}_${catalogChapter.id}`;
+  const readRef = doc(state.firebase.firestore, "readChapters", readId);
+  const existing = await getDoc(readRef);
+
+  if (existing.exists()) {
+    showToast("Esse capitulo ja estava registrado. XP nao duplica.");
+    return;
+  }
+
+  const now = new Date().toISOString();
+
+  try {
+    await setDoc(readRef, {
+      userId: state.user.id,
+      chapterId: catalogChapter.id,
+      readAt: now,
+      createdAt: now,
+    });
+  } catch (error) {
+    console.error(error);
+    showToast(error.message || "Nao consegui registrar no Firebase.");
+    return;
+  }
+
+  await refreshChapters(false);
+  await refreshRanking(false);
+  renderAll();
+
+  const nextLevel = getStats().level;
+  if (nextLevel > oldLevel) {
+    showToast(`Level up! Voce chegou ao level ${nextLevel}.`);
+  } else {
+    showToast(`Capitulo registrado online. +${catalogChapter.xp} XP.`);
+  }
+}
+
 function exportCurrentUserData() {
   if (!state.user) {
     return;
@@ -1730,6 +2091,16 @@ async function boot() {
     renderMangaOptions();
     dom.readDateInput.value = toDatetimeLocal();
 
+    if (isFirebaseDatabase()) {
+      const authUser = await getFirebaseCurrentUser();
+
+      if (authUser) {
+        const profile = await ensureFirebaseProfile(authUser);
+        await showAppForUser(profile);
+        return;
+      }
+    }
+
     if (isSupabaseDatabase()) {
       const { data, error } = await state.supabase.auth.getSession();
 
@@ -1767,7 +2138,7 @@ dom.registerTab.addEventListener("click", () => switchAuth("register"));
 dom.loginForm.addEventListener("submit", handleLogin);
 dom.registerForm.addEventListener("submit", handleRegister);
 dom.logoutButton.addEventListener("click", logout);
-dom.quickAddButton.addEventListener("click", () => prefillChapterForm("", 1, 35));
+dom.quickAddButton.addEventListener("click", () => setView("manga-view"));
 dom.chapterForm.addEventListener("submit", handleChapterSubmit);
 dom.mangaSearch.addEventListener("input", () => {
   state.search = dom.mangaSearch.value;
