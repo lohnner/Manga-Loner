@@ -13,6 +13,7 @@ service cloud.firestore {
         'local-alien-headbutt-1',
         'local-naruto-1',
         'local-one-piece-1'
+        'local-one-piece-2'
       ];
     }
 

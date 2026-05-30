@@ -104,6 +104,16 @@ const defaultChapterCatalog = [
     xp: 60,
     pages: 60,
   },
+  {
+    id: "local-one-piece-2",
+    mangaKey: "one-piece",
+    mangaTitle: "One Piece",
+    author: "Eiichiro Oda",
+    cover: "assets/covers/one-piece.jpg",
+    chapterNumber: 2,
+    xp: 25,
+    pages: 25,
+  },
 ];
 
 const avatarCatalog = [
