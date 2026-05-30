@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlparse
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "manga_online.db"
+DB_PATH = BASE_DIR / "manga_loner.db"
 
 
 def utc_now() -> str:
@@ -104,7 +104,7 @@ def chapter_from_row(row: sqlite3.Row) -> dict:
 
 
 class MangaOnlineHandler(SimpleHTTPRequestHandler):
-    server_version = "MangaOnlineDB/1.0"
+    server_version = "MangaLoner/1.0"
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")
@@ -415,7 +415,7 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Servidor local do Manga Online DB.")
+    parser = argparse.ArgumentParser(description="Servidor local do Manga Loner.")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=4173)
     args = parser.parse_args()
@@ -427,7 +427,7 @@ def main() -> None:
         return MangaOnlineHandler(*handler_args, directory=str(BASE_DIR), **handler_kwargs)
 
     server = ThreadingHTTPServer((args.host, args.port), handler)
-    print(f"Manga Online DB em http://{args.host}:{args.port}/")
+    print(f"Manga Loner em http://{args.host}:{args.port}/")
     print(f"Banco: {DB_PATH}")
     server.serve_forever()
 

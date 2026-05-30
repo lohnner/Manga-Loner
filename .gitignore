@@ -1,4 +1,4 @@
-manga_online.db
+manga_*.db
 *.log
 github-desktop-*.png
 __pycache__/

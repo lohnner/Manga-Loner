@@ -1,4 +1,4 @@
-# Manga Online DB
+# Manga Loner
 
 App local para cadastro de usuarios, perfil, mangas lidos, historico, XP e level.
 
@@ -15,7 +15,7 @@ Rode o servidor:
 ```
 
 Depois acesse pelo IP do computador servidor, por exemplo `http://192.168.0.10:4173/`.
-Nesse modo os dados ficam no arquivo `manga_online.db` e todos usam o mesmo ranking.
+Nesse modo os dados ficam no arquivo `manga_loner.db` e todos usam o mesmo ranking.
 
 ## Como publicar no GitHub Pages
 

@@ -1,6 +1,6 @@
-const DB_NAME = "manga-online-db";
+const DB_NAME = "manga-loner-db";
 const DB_VERSION = 1;
-const ACTIVE_USER_KEY = "manga-online-db:active-user";
+const ACTIVE_USER_KEY = "manga-loner-db:active-user";
 const DEFAULT_AVATAR_ID = "level-1-luffy";
 
 const defaultCatalog = [
@@ -785,7 +785,7 @@ function renderCover(summary) {
     .join("")
     .toUpperCase();
 
-  return `<div class="manga-cover manga-cover-placeholder" aria-label="Capa de ${escapeHtml(summary.title)}">${escapeHtml(initials || "MO")}</div>`;
+  return `<div class="manga-cover manga-cover-placeholder" aria-label="Capa de ${escapeHtml(summary.title)}">${escapeHtml(initials || "ML")}</div>`;
 }
 
 function renderMangaList() {
@@ -1208,7 +1208,7 @@ function exportCurrentUserData() {
   const link = document.createElement("a");
 
   link.href = url;
-  link.download = `manga-online-${slugify(state.user.login)}-${formatFileDate(exportedAt)}.json`;
+  link.download = `manga-loner-${slugify(state.user.login)}-${formatFileDate(exportedAt)}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
