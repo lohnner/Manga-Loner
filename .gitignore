@@ -1,0 +1,7 @@
+manga_online.db
+*.log
+github-desktop-*.png
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

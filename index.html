@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Manga Online DB</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="auth-screen" class="auth-shell">
+      <section class="auth-panel" aria-labelledby="auth-title">
+        <div class="auth-media">
+          <img src="assets/covers/gachiakuta.jpg" alt="Capa de manga">
+          <div class="auth-copy">
+            <p class="eyebrow">Banco local</p>
+            <h1 id="auth-title">Manga Online</h1>
+            <p>Perfil, mangas lidos, XP e level por usuario.</p>
+          </div>
+        </div>
+
+        <div class="auth-card">
+          <div class="auth-tabs" role="tablist" aria-label="Acesso">
+            <button id="login-tab" class="auth-tab is-active" type="button">Entrar</button>
+            <button id="register-tab" class="auth-tab" type="button">Cadastrar</button>
+          </div>
+
+          <form id="login-form" class="auth-form">
+            <label for="login-credential">Login ou email</label>
+            <input id="login-credential" name="credential" autocomplete="username" required>
+
+            <label for="login-password">Senha</label>
+            <input id="login-password" name="password" type="password" autocomplete="current-password" minlength="6" required>
+
+            <button class="primary-action" type="submit">Entrar</button>
+          </form>
+
+          <form id="register-form" class="auth-form is-hidden">
+            <label for="register-name">Nome do perfil</label>
+            <input id="register-name" name="displayName" autocomplete="name" minlength="2" maxlength="32" required>
+
+            <label for="register-email">Email</label>
+            <input id="register-email" name="email" type="email" autocomplete="email" required>
+
+            <label for="register-login">Login</label>
+            <input id="register-login" name="login" autocomplete="username" minlength="3" maxlength="24" required>
+
+            <label for="register-password">Senha</label>
+            <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="6" required>
+
+            <label for="register-confirm">Confirmar senha</label>
+            <input id="register-confirm" name="confirmPassword" type="password" autocomplete="new-password" minlength="6" required>
+
+            <button class="primary-action" type="submit">Criar conta</button>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div id="app-shell" class="app-shell is-hidden">
+      <aside class="sidebar" aria-label="Navegacao principal">
+        <div class="brand">
+          <span class="brand-mark">MO</span>
+          <div>
+            <strong>Manga Online</strong>
+            <small>Banco de leitura</small>
+          </div>
+        </div>
+
+        <div class="mini-profile">
+          <img id="mini-avatar" src="assets/avatars/level-1-luffy.png" alt="Avatar do usuario">
+          <div>
+            <strong id="mini-name">Leitor</strong>
+            <span id="mini-level">Level 1</span>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Abas">
+          <button class="nav-button is-active" type="button" data-view="profile-view">Perfil</button>
+          <button class="nav-button" type="button" data-view="manga-view">Mangas</button>
+          <button class="nav-button" type="button" data-view="ranking-view">Ranking</button>
+          <button class="nav-button" type="button" data-view="database-view">Banco</button>
+        </nav>
+
+        <button id="logout-button" class="ghost-button sidebar-logout" type="button">Sair</button>
+      </aside>
+
+      <main class="content">
+        <section id="profile-view" class="view is-active" aria-labelledby="profile-title">
+          <div class="view-heading">
+            <div>
+              <p class="eyebrow">Perfil</p>
+              <h2 id="profile-title">Seu progresso</h2>
+            </div>
+            <button id="quick-add-button" class="primary-action" type="button">Registrar capitulo</button>
+          </div>
+
+          <div class="profile-grid">
+            <article class="profile-card identity-card">
+              <button id="avatar-button" class="avatar-button" type="button" aria-label="Escolher avatar">
+                <img id="profile-avatar" src="assets/avatars/level-1-luffy.png" alt="Avatar do perfil">
+              </button>
+              <div>
+                <p class="muted">Usuario</p>
+                <h3 id="profile-name">-</h3>
+                <p id="profile-login" class="account-line">-</p>
+              </div>
+            </article>
+
+            <article class="profile-card level-card">
+              <div class="stat-row">
+                <span id="rank-label">Novato</span>
+                <strong id="level-value">1</strong>
+              </div>
+              <div class="xp-bar" aria-label="Progresso de XP">
+                <span id="xp-fill"></span>
+              </div>
+              <div class="progress-copy">
+                <span id="xp-current">0 XP</span>
+                <span id="xp-next">100 XP para o level 2</span>
+              </div>
+            </article>
+
+            <article class="profile-card stat-card">
+              <span>XP total</span>
+              <strong id="total-xp">0</strong>
+            </article>
+
+            <article class="profile-card stat-card">
+              <span>Capitulos lidos</span>
+              <strong id="chapters-read">0</strong>
+            </article>
+
+            <article class="profile-card stat-card">
+              <span>Mangas</span>
+              <strong id="manga-count">0</strong>
+            </article>
+
+            <article class="profile-card stat-card">
+              <span>Paginas</span>
+              <strong id="pages-read">0</strong>
+            </article>
+          </div>
+
+          <section class="panel" aria-labelledby="profile-manga-title">
+            <div class="panel-heading">
+              <h3 id="profile-manga-title">Mangas no perfil</h3>
+              <span id="profile-manga-summary" class="pill">0 mangas</span>
+            </div>
+            <div id="profile-manga-list" class="compact-manga-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="history-title">
+            <div class="panel-heading">
+              <h3 id="history-title">Historico</h3>
+              <span id="history-summary" class="pill">0 capitulos</span>
+            </div>
+            <div id="history-list" class="history-list"></div>
+          </section>
+        </section>
+
+        <section id="manga-view" class="view" aria-labelledby="manga-title">
+          <div class="view-heading">
+            <div>
+              <p class="eyebrow">Mangas</p>
+              <h2 id="manga-title">Capitulos lidos</h2>
+            </div>
+            <form class="search-form" role="search">
+              <label for="manga-search">Pesquisar</label>
+              <input id="manga-search" type="search" autocomplete="off" placeholder="Nome do manga">
+            </form>
+          </div>
+
+          <section class="entry-panel" aria-labelledby="entry-title">
+            <div>
+              <p class="eyebrow">Registro</p>
+              <h3 id="entry-title">Adicionar leitura</h3>
+            </div>
+            <form id="chapter-form" class="chapter-form">
+              <label>
+                Manga
+                <input id="manga-title-input" name="mangaTitle" list="manga-options" autocomplete="off" required>
+                <datalist id="manga-options"></datalist>
+              </label>
+
+              <label>
+                Capitulo
+                <input id="chapter-number-input" name="chapterNumber" type="number" min="1" step="1" inputmode="numeric" required>
+              </label>
+
+              <label>
+                Paginas
+                <input id="page-count-input" name="pages" type="number" min="1" max="300" step="1" inputmode="numeric" value="35" required>
+              </label>
+
+              <label>
+                Data
+                <input id="read-date-input" name="readAt" type="datetime-local">
+              </label>
+
+              <button class="primary-action" type="submit">Salvar</button>
+            </form>
+          </section>
+
+          <div id="manga-list" class="manga-grid"></div>
+        </section>
+
+        <section id="ranking-view" class="view" aria-labelledby="ranking-title">
+          <div class="view-heading">
+            <div>
+              <p class="eyebrow">Ranking</p>
+              <h2 id="ranking-title">Mais XP</h2>
+            </div>
+            <span id="ranking-summary" class="pill">0 usuarios</span>
+          </div>
+
+          <div id="ranking-list" class="ranking-list"></div>
+        </section>
+
+        <section id="database-view" class="view" aria-labelledby="database-title">
+          <div class="view-heading">
+            <div>
+              <p class="eyebrow">Banco</p>
+              <h2 id="database-title">Dados salvos</h2>
+            </div>
+          </div>
+
+          <div class="database-grid">
+            <article class="panel database-card">
+              <div class="panel-heading">
+                <h3>Resumo</h3>
+                <span id="database-status" class="pill">IndexedDB</span>
+              </div>
+              <dl class="database-list">
+                <div>
+                  <dt>Conta</dt>
+                  <dd id="database-user">-</dd>
+                </div>
+                <div>
+                  <dt>Registros</dt>
+                  <dd id="database-records">0 capitulos</dd>
+                </div>
+                <div>
+                  <dt>Criada em</dt>
+                  <dd id="database-created">-</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article class="panel database-card">
+              <h3>Backup</h3>
+              <div class="backup-actions">
+                <button id="export-button" class="primary-action" type="button">Exportar JSON</button>
+                <button id="import-button" class="ghost-button" type="button">Importar JSON</button>
+                <input id="import-input" class="file-input" type="file" accept="application/json,.json">
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="avatar-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
+      <div class="modal-panel">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">Perfil</p>
+            <h2 id="avatar-title">Escolher avatar</h2>
+          </div>
+          <button id="close-avatar-modal" class="icon-button" type="button" aria-label="Fechar">x</button>
+        </div>
+        <div id="avatar-gallery" class="avatar-gallery"></div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
