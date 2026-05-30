@@ -21,7 +21,28 @@ Nesse modo os dados ficam no arquivo `manga_loner.db` e todos usam o mesmo ranki
 
 Publique esta pasta como repositorio pelo GitHub Desktop. Depois do primeiro push na branch `main`, o workflow em `.github/workflows/pages.yml` envia o site para GitHub Pages.
 
-No GitHub Pages o site e estatico: cadastro, perfil e mangas ficam salvos no navegador de cada pessoa. O ranking compartilhado com SQLite funciona apenas quando o `server.py` esta rodando em um computador/servidor.
+No GitHub Pages o site e estatico. Para cadastro e ranking online entre jogadores, configure o Supabase abaixo.
+
+## Banco online gratis com Supabase
+
+1. Crie um projeto gratis em https://supabase.com.
+2. Abra `SQL Editor`, cole o conteudo de `supabase-schema.sql` e execute.
+3. Em `Authentication > Providers > Email`, deixe email/senha ativado. Para testes rapidos, voce pode desativar confirmacao de email.
+4. Em `Project Settings > API`, copie `Project URL` e `anon public key`.
+5. Cole esses valores em `supabase-config.js`:
+
+```js
+window.MANGA_LONER_SUPABASE = {
+  url: "https://SEU-PROJETO.supabase.co",
+  anonKey: "SUA-ANON-PUBLIC-KEY",
+};
+```
+
+6. Faca commit e push. O GitHub Pages vai atualizar o site.
+
+O XP vem da tabela `chapter_catalog`. Para adicionar ou alterar XP, edite essa tabela no Supabase. Os usuarios so registram capitulos existentes no catalogo, e o ranking soma o XP do banco.
+
+No modo Supabase, o cadastro continua pedindo email, login e senha; para entrar, use o email cadastrado.
 
 ## O que foi criado
 
@@ -32,6 +53,7 @@ No GitHub Pages o site e estatico: cadastro, perfil e mangas ficam salvos no nav
 - Aba Mangas para registrar capitulos lidos manualmente.
 - Aba Ranking com usuarios ordenados por XP.
 - Biblioteca inicial com Gachiakuta, One Piece, Naruto e Alien Headbutt.
+- Integracao opcional com Supabase para contas e ranking online.
 - Backup JSON na aba Banco.
 
 ## Observacao
