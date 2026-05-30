@@ -114,6 +114,36 @@ const defaultChapterCatalog = [
     xp: 25,
     pages: 25,
   },
+    {
+    id: "local-one-piece-3",
+    mangaKey: "one-piece",
+    mangaTitle: "One Piece",
+    author: "Eiichiro Oda",
+    cover: "assets/covers/one-piece.jpg",
+    chapterNumber: 3,
+    xp: 22,
+    pages: 22,
+  },
+      {
+    id: "local-chainsaw-man-1",
+    mangaKey: "chainsaw-man",
+    mangaTitle: "Tatsuki Fujimoto",
+    author: "Eiichiro Oda",
+    cover: "assets/covers/chainsaw-man.jpg",
+    chapterNumber: 1,
+    xp: 53,
+    pages: 53,
+  },
+        {
+    id: "local-chainsaw-man-2",
+    mangaKey: "chainsaw-man",
+    mangaTitle: "Chainsaw Man",
+    author: "Tatsuki Fujimoto",
+    cover: "assets/covers/chainsaw-man.jpg",
+    chapterNumber: 2,
+    xp: 26,
+    pages: 26,
+  },
 ];
 
 const avatarCatalog = [
