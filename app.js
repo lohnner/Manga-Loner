@@ -1833,11 +1833,111 @@ function renderCover(summary) {
   return `<div class="manga-cover manga-cover-placeholder" aria-label="Capa de ${escapeHtml(title)}">${escapeHtml(initials || "ML")}</div>`;
 }
 
+function bindMangaListActions() {
+  dom.mangaList.querySelectorAll("[data-register-chapter-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      registerCatalogChapter(button.dataset.registerChapterId);
+    });
+  });
+
+  dom.mangaList.querySelectorAll("[data-read-progress-manga-key]").forEach((input) => {
+    input.addEventListener("change", () => {
+      setMangaReadProgress(input.dataset.readProgressMangaKey, input.value);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        input.blur();
+      }
+    });
+  });
+}
+
+function renderFallbackMangaList(search = "") {
+  const query = search.trim().toLowerCase();
+  const mangas = defaultCatalog.filter((manga) => manga.title.toLowerCase().includes(query));
+
+  if (!mangas.length) {
+    dom.mangaList.innerHTML = `
+      <div class="empty-state">
+        <strong>Nenhum manga encontrado</strong>
+        <span>Tente pesquisar por outro nome.</span>
+      </div>
+    `;
+    return;
+  }
+
+  dom.mangaList.innerHTML = mangas
+    .map((manga) => {
+      const readCount = state.chapters.filter((chapter) => chapter.mangaKey === manga.key).length;
+      const firstChapter = state.chapterCatalog.find((chapter) => chapter.mangaKey === manga.key)
+        || defaultChapterCatalog.find((chapter) => chapter.mangaKey === manga.key);
+
+      return `
+        <article class="manga-card">
+          ${renderCover({
+            mangaKey: manga.key,
+            title: manga.title,
+            cover: manga.cover,
+          })}
+          <div class="manga-body">
+            <div>
+              <p class="eyebrow">${escapeHtml(manga.author)}</p>
+              <h3>${escapeHtml(manga.title)}</h3>
+              <p class="muted">Biblioteca inicial</p>
+            </div>
+            <div class="manga-stats">
+              <span>${formatReadProgress(readCount, manga.totalChapters)}</span>
+              <span>${escapeHtml(manga.status)}</span>
+              <span>${readCount * CHAPTER_XP} XP</span>
+            </div>
+            <div class="manga-actions">
+              ${firstChapter ? `
+                <button
+                  class="primary-action"
+                  type="button"
+                  data-register-chapter-id="${firstChapter.id}"
+                >
+                  Registrar Cap. ${firstChapter.chapterNumber}
+                </button>
+              ` : ""}
+              <label class="read-progress-editor" title="Editar capitulos lidos de ${escapeHtml(manga.title)}">
+                <span>Lido</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="${manga.totalChapters}"
+                  step="1"
+                  inputmode="numeric"
+                  value="${readCount}"
+                  data-read-progress-manga-key="${manga.key}"
+                  aria-label="Capitulos lidos de ${escapeHtml(manga.title)}"
+                >
+                <span>/ ${manga.totalChapters}</span>
+              </label>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  bindMangaListActions();
+}
+
 function renderMangaList() {
   const search = state.search.trim().toLowerCase();
-  const summaries = buildMangaSummaries(true).filter((summary) => {
-    return getMangaTitleFallback(summary.mangaKey, summary.title).toLowerCase().includes(search);
-  });
+  let summaries = [];
+
+  try {
+    summaries = buildMangaSummaries(true).filter((summary) => {
+      return getMangaTitleFallback(summary.mangaKey, summary.title).toLowerCase().includes(search);
+    });
+  } catch (error) {
+    console.error("Nao consegui montar a lista de mangas.", error);
+    renderFallbackMangaList(search);
+    return;
+  }
 
   if (!summaries.length) {
     dom.mangaList.innerHTML = `
@@ -1849,8 +1949,9 @@ function renderMangaList() {
     return;
   }
 
-  dom.mangaList.innerHTML = summaries
-    .map((summary) => {
+  try {
+    dom.mangaList.innerHTML = summaries
+      .map((summary) => {
       const safeTitle = getMangaTitleFallback(summary.mangaKey, summary.title);
       const catalogChapters = getCatalogChaptersByManga(summary.mangaKey);
       const nextCatalogChapter = catalogChapters.find((chapter) => {
@@ -1907,26 +2008,15 @@ function renderMangaList() {
           </div>
         </article>
       `;
-    })
-    .join("");
+      })
+      .join("");
+  } catch (error) {
+    console.error("Nao consegui renderizar os mangas.", error);
+    renderFallbackMangaList(search);
+    return;
+  }
 
-  dom.mangaList.querySelectorAll("[data-register-chapter-id]").forEach((button) => {
-    button.addEventListener("click", () => {
-      registerCatalogChapter(button.dataset.registerChapterId);
-    });
-  });
-
-  dom.mangaList.querySelectorAll("[data-read-progress-manga-key]").forEach((input) => {
-    input.addEventListener("change", () => {
-      setMangaReadProgress(input.dataset.readProgressMangaKey, input.value);
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        input.blur();
-      }
-    });
-  });
+  bindMangaListActions();
 }
 
 function renderRanking() {
