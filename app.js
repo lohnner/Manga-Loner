@@ -1060,6 +1060,10 @@ function getCatalogByKey(key) {
   return defaultCatalog.find((item) => item.key === key);
 }
 
+function getMangaTitleFallback(mangaKey, title = "") {
+  return getCatalogByKey(mangaKey)?.title || String(title || mangaKey || "Manga").trim() || "Manga";
+}
+
 function getCatalogByTitle(title) {
   const key = slugify(title);
   return getCatalogByKey(key);
@@ -1549,11 +1553,17 @@ function buildMangaSummaries(includeCatalog = false) {
   const map = new Map();
 
   state.chapters.forEach((chapter) => {
-    if (!map.has(chapter.mangaKey)) {
-      const catalog = getCatalogByKey(chapter.mangaKey);
-      map.set(chapter.mangaKey, {
-        mangaKey: chapter.mangaKey,
-        title: catalog?.title || chapter.mangaTitle,
+    const mangaKey = chapter.mangaKey || slugify(chapter.mangaTitle);
+
+    if (!mangaKey) {
+      return;
+    }
+
+    if (!map.has(mangaKey)) {
+      const catalog = getCatalogByKey(mangaKey);
+      map.set(mangaKey, {
+        mangaKey,
+        title: getMangaTitleFallback(mangaKey, chapter.mangaTitle),
         cover: catalog?.cover || chapter.cover || "",
         author: catalog?.author || "Catalogo pessoal",
         defaultPages: catalog?.defaultPages || 35,
@@ -1567,7 +1577,7 @@ function buildMangaSummaries(includeCatalog = false) {
       });
     }
 
-    const summary = map.get(chapter.mangaKey);
+    const summary = map.get(mangaKey);
     summary.chapters.push(chapter);
     summary.pages += Number(chapter.pages || 0);
     summary.xp += Number(chapter.xp || 0);
@@ -1623,7 +1633,10 @@ function buildMangaSummaries(includeCatalog = false) {
         return new Date(b.latestReadAt) - new Date(a.latestReadAt);
       }
 
-      return a.title.localeCompare(b.title, "pt-BR");
+      return getMangaTitleFallback(a.mangaKey, a.title).localeCompare(
+        getMangaTitleFallback(b.mangaKey, b.title),
+        "pt-BR"
+      );
     });
 }
 
@@ -1689,10 +1702,11 @@ function renderProfile() {
     dom.profileMangaList.innerHTML = summaries
       .slice(0, 6)
       .map((summary) => {
+        const title = getMangaTitleFallback(summary.mangaKey, summary.title);
         return `
           <div class="compact-manga-item">
             <div>
-              <strong>${escapeHtml(summary.title)}</strong>
+              <strong>${escapeHtml(title)}</strong>
               <span>${formatReadProgress(summary.chapters.length, summary.totalChapters)} - ultimo capitulo ${summary.maxChapter}</span>
             </div>
             <span>${summary.xp} XP</span>
@@ -1802,11 +1816,13 @@ function renderMangaOptions() {
 }
 
 function renderCover(summary) {
+  const title = getMangaTitleFallback(summary.mangaKey, summary.title);
+
   if (summary.cover) {
-    return `<img class="manga-cover" src="${escapeHtml(summary.cover)}" alt="Capa de ${escapeHtml(summary.title)}">`;
+    return `<img class="manga-cover" src="${escapeHtml(summary.cover)}" alt="Capa de ${escapeHtml(title)}">`;
   }
 
-  const initials = summary.title
+  const initials = title
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
@@ -1814,13 +1830,13 @@ function renderCover(summary) {
     .join("")
     .toUpperCase();
 
-  return `<div class="manga-cover manga-cover-placeholder" aria-label="Capa de ${escapeHtml(summary.title)}">${escapeHtml(initials || "ML")}</div>`;
+  return `<div class="manga-cover manga-cover-placeholder" aria-label="Capa de ${escapeHtml(title)}">${escapeHtml(initials || "ML")}</div>`;
 }
 
 function renderMangaList() {
   const search = state.search.trim().toLowerCase();
   const summaries = buildMangaSummaries(true).filter((summary) => {
-    return summary.title.toLowerCase().includes(search);
+    return getMangaTitleFallback(summary.mangaKey, summary.title).toLowerCase().includes(search);
   });
 
   if (!summaries.length) {
@@ -1835,6 +1851,7 @@ function renderMangaList() {
 
   dom.mangaList.innerHTML = summaries
     .map((summary) => {
+      const safeTitle = getMangaTitleFallback(summary.mangaKey, summary.title);
       const catalogChapters = getCatalogChaptersByManga(summary.mangaKey);
       const nextCatalogChapter = catalogChapters.find((chapter) => {
         return !summary.chapterNumbers.includes(Number(chapter.chapterNumber));
@@ -1852,7 +1869,7 @@ function renderMangaList() {
         : `<span class="muted">${catalogChapters.length ? "Todos os capitulos do catalogo foram registrados." : "Sem capitulos no catalogo."}</span>`;
       const progressEditor = summary.totalChapters
         ? `
-          <label class="read-progress-editor" title="Editar capitulos lidos de ${escapeHtml(summary.title)}">
+          <label class="read-progress-editor" title="Editar capitulos lidos de ${escapeHtml(safeTitle)}">
             <span>Lido</span>
             <input
               type="number"
@@ -1862,7 +1879,7 @@ function renderMangaList() {
               inputmode="numeric"
               value="${summary.chapters.length}"
               data-read-progress-manga-key="${summary.mangaKey}"
-              aria-label="Capitulos lidos de ${escapeHtml(summary.title)}"
+              aria-label="Capitulos lidos de ${escapeHtml(safeTitle)}"
             >
             <span>/ ${summary.totalChapters}</span>
           </label>
@@ -1875,7 +1892,7 @@ function renderMangaList() {
           <div class="manga-body">
             <div>
               <p class="eyebrow">${escapeHtml(summary.author)}</p>
-              <h3>${escapeHtml(summary.title)}</h3>
+              <h3>${escapeHtml(safeTitle)}</h3>
               <p class="muted">${summary.catalogOnly ? "Biblioteca inicial" : `Ultima leitura: ${formatDate(summary.latestReadAt)}`}</p>
             </div>
             <div class="manga-stats">
