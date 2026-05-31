@@ -45,6 +45,13 @@ const defaultCatalog = [
     defaultPages: 54,
   },
   {
+    key: "jujutsu-kaisen",
+    title: "Jujutsu Kaisen",
+    author: "Gege Akutami",
+    cover: "assets/covers/jujutsu-kaisen.jpg",
+    defaultPages: 54,
+  },
+  {
     key: "alien-headbutt",
     title: "Alien Headbutt",
     author: "Akira Inui",
@@ -110,6 +117,16 @@ const defaultChapterCatalog = [
     chapterNumber: 2,
     xp: 23,
     pages: 23,
+  },
+  {
+    id: "local-jujutsu-kaisen-1",
+    mangaKey: "jujutsu-kaisen",
+    mangaTitle: "Jujutsu Kaisen",
+    author: "Gege Akutami",
+    cover: "assets/covers/jujutsu-kaisen.jpg",
+    chapterNumber: 1,
+    xp: 54,
+    pages: 54,
   },
   {
     id: "local-one-piece-1",
