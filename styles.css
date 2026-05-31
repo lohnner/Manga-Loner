@@ -744,15 +744,13 @@ img {
 }
 
 .manga-stats,
-.chapter-tags,
 .backup-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.manga-stats span,
-.chapter-tags span {
+.manga-stats span {
   min-height: 28px;
   display: inline-flex;
   align-items: center;
@@ -769,10 +767,44 @@ img {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
 .manga-actions button {
   min-height: 38px;
+}
+
+.read-progress-editor {
+  min-height: 38px;
+  display: inline-grid;
+  grid-template-columns: auto 64px auto;
+  gap: 6px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--tile-bg);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 820;
+}
+
+.read-progress-editor input {
+  width: 64px;
+  height: 28px;
+  padding: 0 6px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--input-bg);
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.read-progress-editor input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(183, 43, 43, 0.13);
+  outline: none;
 }
 
 .empty-state {

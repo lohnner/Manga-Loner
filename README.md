@@ -54,7 +54,7 @@ No modo Firebase, o cadastro continua pedindo email, login e senha; para entrar,
 - Cadastro com nome do perfil, email, login e senha.
 - Login por login ou email.
 - Senha salva como hash com salt, sem guardar a senha pura.
-- Perfil com avatar, XP, level, mangas, capitulos e paginas lidas.
+- Perfil com avatar, XP, level, mangas e capitulos lidos.
 - Aba Mangas para registrar capitulos lidos manualmente.
 - Aba Ranking com usuarios ordenados por XP.
 - Biblioteca inicial com Gachiakuta, One Piece, Naruto e Alien Headbutt.

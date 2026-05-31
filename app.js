@@ -8,6 +8,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -141,6 +142,10 @@ const state = {
   avatarPurchases: [],
   dailyDateKey: "",
   ranking: [],
+  databaseStats: {
+    mangas: 0,
+    chapters: 0,
+  },
   search: "",
   toastTimer: null,
   liveRefreshTimer: null,
@@ -174,7 +179,6 @@ const dom = {
   totalXp: document.querySelector("#total-xp"),
   chaptersRead: document.querySelector("#chapters-read"),
   mangaCount: document.querySelector("#manga-count"),
-  pagesRead: document.querySelector("#pages-read"),
   lonerPoints: document.querySelector("#loner-points"),
   openShopButton: document.querySelector("#open-shop-button"),
   dailySummary: document.querySelector("#daily-summary"),
@@ -195,7 +199,8 @@ const dom = {
   rankingList: document.querySelector("#ranking-list"),
   databaseStatus: document.querySelector("#database-status"),
   databaseUser: document.querySelector("#database-user"),
-  databaseRecords: document.querySelector("#database-records"),
+  databaseMangas: document.querySelector("#database-mangas"),
+  databaseChapters: document.querySelector("#database-chapters"),
   databaseCreated: document.querySelector("#database-created"),
   exportButton: document.querySelector("#export-button"),
   importButton: document.querySelector("#import-button"),
@@ -440,7 +445,21 @@ function getAllRecords(storeName) {
     return apiRequest("/api/ranking");
   }
 
+  if (isApiDatabase() && storeName === "databaseStats") {
+    return apiRequest("/api/database-stats");
+  }
+
   return runStore(storeName, "readonly", (store) => store.getAll());
+}
+
+function deleteRecord(storeName, key) {
+  if (isApiDatabase() && storeName === "chapters") {
+    return apiRequest(`/api/chapters/${encodeURIComponent(key)}`, {
+      method: "DELETE",
+    });
+  }
+
+  return runStore(storeName, "readwrite", (store) => store.delete(key));
 }
 
 function mapSupabaseProfile(profile, authUser) {
@@ -502,6 +521,48 @@ function mapSupabaseRanking(row) {
     mangas: Number(row.mangas || 0),
     lastReadAt: row.last_read_at,
   };
+}
+
+async function getSupabaseDatabaseStats() {
+  try {
+    const countResult = await state.supabase
+      .from("read_chapters")
+      .select("id", { count: "exact", head: true });
+
+    if (countResult.error) {
+      throw countResult.error;
+    }
+
+    const { data, error } = await state.supabase
+      .from("read_chapters")
+      .select("chapter_catalog(manga_key)");
+
+    if (error) {
+      throw error;
+    }
+
+    const mangaKeys = new Set();
+    (data || []).forEach((row) => {
+      const catalog = Array.isArray(row.chapter_catalog)
+        ? row.chapter_catalog[0]
+        : row.chapter_catalog;
+
+      if (catalog?.manga_key) {
+        mangaKeys.add(catalog.manga_key);
+      }
+    });
+
+    return {
+      mangas: mangaKeys.size,
+      chapters: Number(countResult.count || 0),
+    };
+  } catch (error) {
+    console.warn("Nao consegui carregar totais globais do Supabase.", error);
+    return {
+      mangas: Math.max(0, ...state.ranking.map((entry) => Number(entry.mangas || 0))),
+      chapters: state.ranking.reduce((total, entry) => total + Number(entry.chapters || 0), 0),
+    };
+  }
 }
 
 async function refreshSupabaseCatalog() {
@@ -1019,6 +1080,38 @@ function getCatalogChapter(title, chapterNumber) {
   });
 }
 
+function getCatalogChaptersByManga(mangaKey) {
+  return state.chapterCatalog
+    .filter((chapter) => chapter.mangaKey === mangaKey)
+    .sort((a, b) => Number(a.chapterNumber) - Number(b.chapterNumber));
+}
+
+function getTotalChaptersByManga(mangaKey) {
+  const catalogCount = getCatalogChaptersByManga(mangaKey).length;
+  return catalogCount || getCatalogByKey(mangaKey)?.totalChapters || 0;
+}
+
+function formatReadProgress(readCount, totalChapters) {
+  return totalChapters ? `Lido ${readCount} / ${totalChapters}` : `Lido ${readCount}`;
+}
+
+function buildDatabaseStatsFromChapters(chapters) {
+  const mangaKeys = new Set();
+
+  chapters.forEach((chapter) => {
+    const mangaKey = chapter?.mangaKey || chapter?.chapter_catalog?.manga_key;
+
+    if (mangaKey) {
+      mangaKeys.add(mangaKey);
+    }
+  });
+
+  return {
+    mangas: mangaKeys.size,
+    chapters: chapters.length,
+  };
+}
+
 function formatDate(value) {
   if (!value) {
     return "-";
@@ -1145,6 +1238,7 @@ function showAuth() {
   state.dailyClaims = [];
   state.avatarPurchases = [];
   state.dailyDateKey = "";
+  state.databaseStats = { mangas: 0, chapters: 0 };
   switchAuth("login");
   dom.authScreen.classList.remove("is-hidden");
   dom.appShell.classList.add("is-hidden");
@@ -1325,6 +1419,7 @@ async function refreshRanking(shouldRender = true) {
       getDocs(collection(state.firebase.firestore, "readChapters")),
     ]);
     const statsByUser = new Map();
+    const databaseMangaKeys = new Set();
 
     profileSnapshots.docs.forEach((profileDoc) => {
       const profile = profileDoc.data();
@@ -1346,6 +1441,10 @@ async function refreshRanking(shouldRender = true) {
       const read = readDoc.data();
       const stats = statsByUser.get(read.userId);
       const catalogChapter = getChapterByCatalogId(read.chapterId);
+
+      if (catalogChapter) {
+        databaseMangaKeys.add(catalogChapter.mangaKey);
+      }
 
       if (!stats || !catalogChapter) {
         return;
@@ -1372,6 +1471,10 @@ async function refreshRanking(shouldRender = true) {
         );
       })
       .map((entry, index) => ({ ...entry, position: index + 1 }));
+    state.databaseStats = {
+      mangas: databaseMangaKeys.size,
+      chapters: readSnapshots.size,
+    };
   } else if (isSupabaseDatabase()) {
     const { data, error } = await state.supabase.rpc("get_ranking");
 
@@ -1380,12 +1483,18 @@ async function refreshRanking(shouldRender = true) {
     }
 
     state.ranking = (data || []).map(mapSupabaseRanking);
+    state.databaseStats = await getSupabaseDatabaseStats();
   } else if (isApiDatabase()) {
     state.ranking = await getAllRecords("ranking");
+    state.databaseStats = await getAllRecords("databaseStats") || {
+      mangas: Math.max(0, ...state.ranking.map((entry) => Number(entry.mangas || 0))),
+      chapters: state.ranking.reduce((total, entry) => total + Number(entry.chapters || 0), 0),
+    };
   } else {
     const users = await getAllRecords("users");
     const chapters = await getAllRecords("chapters");
     const statsByUser = new Map();
+    state.databaseStats = buildDatabaseStatsFromChapters(chapters);
 
     users.forEach((user) => {
       statsByUser.set(user.id, {
@@ -1495,9 +1604,11 @@ function buildMangaSummaries(includeCatalog = false) {
         .map((chapter) => Number(chapter.chapterNumber))
         .sort((a, b) => a - b);
       const maxChapter = chapterNumbers.length ? Math.max(...chapterNumbers) : 0;
+      const totalChapters = summary.totalChapters || getTotalChaptersByManga(summary.mangaKey);
 
       return {
         ...summary,
+        totalChapters,
         chapterNumbers,
         maxChapter,
         nextChapter: maxChapter + 1,
@@ -1561,7 +1672,6 @@ function renderProfile() {
   dom.totalXp.textContent = stats.totalXp;
   dom.chaptersRead.textContent = stats.chapters;
   dom.mangaCount.textContent = stats.mangas;
-  dom.pagesRead.textContent = stats.pages;
   dom.lonerPoints.textContent = getLonerPointsBalance();
   dom.profileMangaSummary.textContent = `${stats.mangas} mangas`;
   dom.historySummary.textContent = `${stats.chapters} capitulos`;
@@ -1583,7 +1693,7 @@ function renderProfile() {
           <div class="compact-manga-item">
             <div>
               <strong>${escapeHtml(summary.title)}</strong>
-              <span>${summary.chapters.length} capitulos - ultimo capitulo ${summary.maxChapter}</span>
+              <span>${formatReadProgress(summary.chapters.length, summary.totalChapters)} - ultimo capitulo ${summary.maxChapter}</span>
             </div>
             <span>${summary.xp} XP</span>
           </div>
@@ -1606,7 +1716,7 @@ function renderProfile() {
           <div class="history-item">
             <div>
               <strong>${escapeHtml(chapter.mangaTitle)} - Capitulo ${chapter.chapterNumber}</strong>
-              <span>${chapter.pages} paginas - ${formatDate(chapter.readAt)}</span>
+              <span>${formatDate(chapter.readAt)}</span>
             </div>
             <span>+${chapter.xp} XP</span>
           </div>
@@ -1725,13 +1835,7 @@ function renderMangaList() {
 
   dom.mangaList.innerHTML = summaries
     .map((summary) => {
-      const chapters = summary.chapterNumbers.slice(-10);
-      const chapterTags = chapters.length
-        ? chapters.map((number) => `<span>${number}</span>`).join("")
-        : "<span>Sem capitulos</span>";
-      const catalogChapters = state.chapterCatalog
-        .filter((chapter) => chapter.mangaKey === summary.mangaKey)
-        .sort((a, b) => Number(a.chapterNumber) - Number(b.chapterNumber));
+      const catalogChapters = getCatalogChaptersByManga(summary.mangaKey);
       const nextCatalogChapter = catalogChapters.find((chapter) => {
         return !summary.chapterNumbers.includes(Number(chapter.chapterNumber));
       });
@@ -1746,6 +1850,24 @@ function renderMangaList() {
           </button>
         `
         : `<span class="muted">${catalogChapters.length ? "Todos os capitulos do catalogo foram registrados." : "Sem capitulos no catalogo."}</span>`;
+      const progressEditor = summary.totalChapters
+        ? `
+          <label class="read-progress-editor" title="Editar capitulos lidos de ${escapeHtml(summary.title)}">
+            <span>Lido</span>
+            <input
+              type="number"
+              min="0"
+              max="${summary.totalChapters}"
+              step="1"
+              inputmode="numeric"
+              value="${summary.chapters.length}"
+              data-read-progress-manga-key="${summary.mangaKey}"
+              aria-label="Capitulos lidos de ${escapeHtml(summary.title)}"
+            >
+            <span>/ ${summary.totalChapters}</span>
+          </label>
+        `
+        : "";
 
       return `
         <article class="manga-card">
@@ -1757,17 +1879,13 @@ function renderMangaList() {
               <p class="muted">${summary.catalogOnly ? "Biblioteca inicial" : `Ultima leitura: ${formatDate(summary.latestReadAt)}`}</p>
             </div>
             <div class="manga-stats">
-              <span>${summary.chapters.length} lidos</span>
-              <span>${summary.totalChapters} capitulos</span>
+              <span>${formatReadProgress(summary.chapters.length, summary.totalChapters)}</span>
               <span>${escapeHtml(summary.status)}</span>
-              <span>${summary.pages} paginas</span>
               <span>${summary.xp} XP</span>
-            </div>
-            <div class="chapter-tags" aria-label="Capitulos registrados">
-              ${chapterTags}
             </div>
             <div class="manga-actions">
               ${actionButton}
+              ${progressEditor}
             </div>
           </div>
         </article>
@@ -1778,6 +1896,18 @@ function renderMangaList() {
   dom.mangaList.querySelectorAll("[data-register-chapter-id]").forEach((button) => {
     button.addEventListener("click", () => {
       registerCatalogChapter(button.dataset.registerChapterId);
+    });
+  });
+
+  dom.mangaList.querySelectorAll("[data-read-progress-manga-key]").forEach((input) => {
+    input.addEventListener("change", () => {
+      setMangaReadProgress(input.dataset.readProgressMangaKey, input.value);
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        input.blur();
+      }
     });
   });
 }
@@ -1835,8 +1965,10 @@ function renderDatabase() {
     : isApiDatabase()
       ? "Servidor SQLite"
       : "IndexedDB";
+  const databaseStats = state.databaseStats || { mangas: 0, chapters: state.chapters.length };
   dom.databaseUser.textContent = `${state.user.displayName} (@${state.user.login})`;
-  dom.databaseRecords.textContent = `${state.chapters.length} capitulos`;
+  dom.databaseMangas.textContent = `${Number(databaseStats.mangas || 0)} mangas`;
+  dom.databaseChapters.textContent = `${Number(databaseStats.chapters || 0)} capitulos`;
   dom.databaseCreated.textContent = formatDate(state.user.createdAt);
 }
 
@@ -2362,6 +2494,163 @@ async function registerDailyChapter(chapterId) {
 
   if (isChapterRead(chapterId)) {
     await claimDailyPointForChapter(chapterId);
+  }
+}
+
+async function runInBatches(items, callback, batchSize = 40) {
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    await Promise.all(batch.map(callback));
+  }
+}
+
+function buildLocalChapterRecord(catalogChapter, readAt) {
+  const catalog = getCatalogByKey(catalogChapter.mangaKey);
+  const recordId = `${state.user.id}:${catalogChapter.mangaKey}:${catalogChapter.chapterNumber}`;
+
+  return {
+    id: recordId,
+    userId: state.user.id,
+    userMangaKey: `${state.user.id}:${catalogChapter.mangaKey}`,
+    mangaKey: catalogChapter.mangaKey,
+    mangaTitle: catalogChapter.mangaTitle || catalog?.title || catalogChapter.mangaKey,
+    cover: catalogChapter.cover || catalog?.cover || "",
+    chapterNumber: Number(catalogChapter.chapterNumber),
+    pages: Number(catalogChapter.pages || catalogChapter.xp || CHAPTER_XP),
+    xp: Number(catalogChapter.xp || CHAPTER_XP),
+    readAt,
+    createdAt: readAt,
+    updatedAt: readAt,
+  };
+}
+
+async function saveProgressChapters(catalogChapters) {
+  if (!catalogChapters.length) {
+    return;
+  }
+
+  const readAt = new Date().toISOString();
+
+  if (isFirebaseDatabase()) {
+    await runInBatches(catalogChapters, (catalogChapter) => {
+      const readId = `${state.user.id}_${catalogChapter.id}`;
+      return setDoc(doc(state.firebase.firestore, "readChapters", readId), {
+        userId: state.user.id,
+        chapterId: catalogChapter.id,
+        readAt,
+        createdAt: readAt,
+      });
+    });
+    return;
+  }
+
+  if (isSupabaseDatabase()) {
+    const { error } = await state.supabase
+      .from("read_chapters")
+      .insert(catalogChapters.map((catalogChapter) => ({
+        user_id: state.user.id,
+        chapter_id: catalogChapter.id,
+        read_at: readAt,
+      })));
+
+    if (error) {
+      throw error;
+    }
+    return;
+  }
+
+  await runInBatches(catalogChapters, (catalogChapter) => {
+    return putRecord("chapters", buildLocalChapterRecord(catalogChapter, readAt));
+  });
+}
+
+async function deleteProgressChapters(chapters) {
+  if (!chapters.length) {
+    return;
+  }
+
+  if (isFirebaseDatabase()) {
+    await runInBatches(chapters, (chapter) => {
+      return deleteDoc(doc(state.firebase.firestore, "readChapters", chapter.id));
+    });
+    return;
+  }
+
+  if (isSupabaseDatabase()) {
+    const { error } = await state.supabase
+      .from("read_chapters")
+      .delete()
+      .eq("user_id", state.user.id)
+      .in("id", chapters.map((chapter) => chapter.id));
+
+    if (error) {
+      throw error;
+    }
+    return;
+  }
+
+  await runInBatches(chapters, (chapter) => deleteRecord("chapters", chapter.id));
+}
+
+async function setMangaReadProgress(mangaKey, rawTarget) {
+  if (!state.user) {
+    showToast("Entre na conta antes de editar o progresso.");
+    return;
+  }
+
+  const target = Number(rawTarget);
+  const catalogChapters = getCatalogChaptersByManga(mangaKey);
+  const totalChapters = catalogChapters.length || getCatalogByKey(mangaKey)?.totalChapters || 0;
+  const mangaTitle = getCatalogByKey(mangaKey)?.title || catalogChapters[0]?.mangaTitle || mangaKey;
+
+  if (!totalChapters || !catalogChapters.length) {
+    showToast("Esse manga ainda nao tem capitulos no catalogo.");
+    renderMangaList();
+    return;
+  }
+
+  if (!Number.isInteger(target)) {
+    showToast("Digite um total de capitulos lidos valido.");
+    renderMangaList();
+    return;
+  }
+
+  const normalizedTarget = Math.min(Math.max(target, 0), totalChapters);
+  const currentChapters = state.chapters.filter((chapter) => chapter.mangaKey === mangaKey);
+  const currentNumbers = new Set(currentChapters.map((chapter) => Number(chapter.chapterNumber)));
+  const chaptersToAdd = catalogChapters.filter((chapter) => {
+    const chapterNumber = Number(chapter.chapterNumber);
+    return chapterNumber <= normalizedTarget && !currentNumbers.has(chapterNumber);
+  });
+  const chaptersToRemove = currentChapters.filter((chapter) => {
+    return Number(chapter.chapterNumber) > normalizedTarget;
+  });
+
+  if (!chaptersToAdd.length && !chaptersToRemove.length) {
+    renderMangaList();
+    showToast("Progresso ja estava atualizado.");
+    return;
+  }
+
+  const oldLevel = getStats().level;
+
+  try {
+    await saveProgressChapters(chaptersToAdd);
+    await deleteProgressChapters(chaptersToRemove);
+    await refreshChapters(false);
+    await refreshRanking(false);
+    renderAll();
+
+    const nextLevel = getStats().level;
+    if (nextLevel > oldLevel) {
+      showToast(`Level up! ${mangaTitle}: ${normalizedTarget}/${totalChapters}.`);
+    } else {
+      showToast(`Progresso de ${mangaTitle}: ${normalizedTarget}/${totalChapters}.`);
+    }
+  } catch (error) {
+    console.error(error);
+    showToast("Nao consegui atualizar esse progresso.");
+    renderMangaList();
   }
 }
 

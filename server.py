@@ -140,6 +140,15 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
 
         self.send_json({"error": "Rota nao encontrada."}, HTTPStatus.NOT_FOUND)
 
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+
+        if parsed.path.startswith("/api/chapters/"):
+            self.delete_chapter(unquote(parsed.path.rsplit("/", 1)[-1]))
+            return
+
+        self.send_json({"error": "Rota nao encontrada."}, HTTPStatus.NOT_FOUND)
+
     def handle_api_get(self, path: str, query: dict[str, list[str]]) -> None:
         if path == "/api/health":
             self.send_json({"ok": True, "database": str(DB_PATH.name)})
@@ -147,6 +156,10 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/ranking":
             self.get_ranking()
+            return
+
+        if path == "/api/database-stats":
+            self.get_database_stats()
             return
 
         if path == "/api/users/by-index":
@@ -370,6 +383,32 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
             )
 
         self.send_json(payload)
+
+    def delete_chapter(self, chapter_id: str) -> None:
+        with connect() as connection:
+            cursor = connection.execute("DELETE FROM chapters WHERE id = ?", (chapter_id,))
+
+        if cursor.rowcount <= 0:
+            self.send_json({"error": "Capitulo nao encontrado."}, HTTPStatus.NOT_FOUND)
+            return
+
+        self.send_json({"ok": True})
+
+    def get_database_stats(self) -> None:
+        with connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                  COUNT(id) AS chapters,
+                  COUNT(DISTINCT manga_key) AS mangas
+                FROM chapters
+                """
+            ).fetchone()
+
+        self.send_json({
+            "mangas": row["mangas"],
+            "chapters": row["chapters"],
+        })
 
     def get_ranking(self) -> None:
         with connect() as connection:
