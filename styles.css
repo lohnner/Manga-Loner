@@ -462,6 +462,16 @@ img {
   gap: 6px;
 }
 
+.loner-points-card {
+  gap: 10px;
+}
+
+.small-action {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 0.9rem;
+}
+
 .panel {
   margin-top: 18px;
   padding: 18px;
@@ -488,6 +498,7 @@ img {
 
 .compact-manga-list,
 .history-list,
+.daily-list,
 .ranking-list {
   display: grid;
   gap: 10px;
@@ -496,6 +507,7 @@ img {
 
 .compact-manga-item,
 .history-item,
+.daily-card,
 .ranking-item {
   display: grid;
   gap: 12px;
@@ -509,6 +521,47 @@ img {
 .compact-manga-item,
 .history-item {
   grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.daily-card {
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+}
+
+.daily-card img {
+  width: 72px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #111516;
+}
+
+.daily-card h4 {
+  margin: 2px 0 4px;
+  font-size: 1.05rem;
+  letter-spacing: 0;
+}
+
+.daily-card span,
+.daily-status {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 780;
+}
+
+.daily-action {
+  min-width: 148px;
+  display: grid;
+  justify-items: end;
+}
+
+.daily-status.is-complete {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: rgba(47, 125, 87, 0.12);
+  color: var(--green);
 }
 
 .ranking-item {
@@ -841,6 +894,67 @@ img {
   filter: grayscale(1);
 }
 
+.shop-balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.shop-balance span {
+  color: var(--muted);
+  font-weight: 820;
+}
+
+.shop-balance strong {
+  font-size: 1.2rem;
+}
+
+.shop-gallery {
+  grid-template-columns: 1fr;
+}
+
+.shop-item {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.shop-item img {
+  width: 76px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #111516;
+}
+
+.shop-item strong,
+.shop-item span {
+  display: block;
+}
+
+.shop-item span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 780;
+}
+
+.shop-item.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(183, 43, 43, 0.12);
+}
+
 .toast {
   position: fixed;
   left: 50%;
@@ -980,9 +1094,26 @@ img {
   .identity-card,
   .compact-manga-item,
   .history-item,
+  .daily-card,
   .ranking-item,
+  .shop-item,
   .database-list div {
     grid-template-columns: 1fr;
+  }
+
+  .daily-action {
+    min-width: 0;
+    justify-items: stretch;
+  }
+
+  .daily-action .primary-action,
+  .shop-item button {
+    width: 100%;
+  }
+
+  .daily-card img,
+  .shop-item img {
+    width: 96px;
   }
 
   .ranking-score {

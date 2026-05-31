@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Manga Loner</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=8">
   </head>
   <body>
     <div id="auth-screen" class="auth-shell">
@@ -139,7 +139,21 @@
               <span>Paginas</span>
               <strong id="pages-read">0</strong>
             </article>
+
+            <article class="profile-card stat-card loner-points-card">
+              <span>Pontos Loner</span>
+              <strong id="loner-points">0</strong>
+              <button id="open-shop-button" class="ghost-button small-action" type="button">Trocar Pontos Loner</button>
+            </article>
           </div>
+
+          <section class="panel" aria-labelledby="daily-title">
+            <div class="panel-heading">
+              <h3 id="daily-title">Diárias</h3>
+              <span id="daily-summary" class="pill">0/3 feitas</span>
+            </div>
+            <div id="daily-list" class="daily-list"></div>
+          </section>
 
           <section class="panel" aria-labelledby="profile-manga-title">
             <div class="panel-heading">
@@ -272,9 +286,26 @@
       </div>
     </div>
 
+    <div id="shop-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="shop-title">
+      <div class="modal-panel">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">Pontos Loner</p>
+            <h2 id="shop-title">Trocar por avatar</h2>
+          </div>
+          <button id="close-shop-modal" class="icon-button" type="button" aria-label="Fechar">x</button>
+        </div>
+        <div class="shop-balance">
+          <span>Saldo</span>
+          <strong id="shop-points">0 Pontos Loner</strong>
+        </div>
+        <div id="shop-gallery" class="avatar-gallery shop-gallery"></div>
+      </div>
+    </div>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="firebase-config.js?v=5"></script>
-    <script type="module" src="app.js?v=5"></script>
+    <script type="module" src="app.js?v=8"></script>
   </body>
 </html>

@@ -21,6 +21,9 @@ const DB_NAME = "manga-loner-db";
 const DB_VERSION = 1;
 const ACTIVE_USER_KEY = "manga-loner-db:active-user";
 const DEFAULT_AVATAR_ID = "level-1-luffy";
+const DAILY_QUEST_COUNT = 3;
+const DAILY_POINT_VALUE = 1;
+const LOCAL_REWARD_KEY_PREFIX = "manga-loner-rewards";
 
 const defaultCatalog = [
   {
@@ -193,6 +196,13 @@ const avatarCatalog = [
     requiredLevel: 5,
     src: "assets/avatars/level-5-naruto.png",
   },
+  {
+    id: "shop-yuji-itadori",
+    name: "Yuji Itadori",
+    requiredLevel: 1,
+    cost: 100,
+    src: "assets/avatars/Comprar100-Yuji Itadori.png",
+  },
 ];
 
 const state = {
@@ -202,6 +212,10 @@ const state = {
   user: null,
   chapters: [],
   chapterCatalog: [...defaultChapterCatalog],
+  dailyQuests: [],
+  dailyClaims: [],
+  avatarPurchases: [],
+  dailyDateKey: "",
   ranking: [],
   search: "",
   toastTimer: null,
@@ -234,6 +248,10 @@ const dom = {
   chaptersRead: document.querySelector("#chapters-read"),
   mangaCount: document.querySelector("#manga-count"),
   pagesRead: document.querySelector("#pages-read"),
+  lonerPoints: document.querySelector("#loner-points"),
+  openShopButton: document.querySelector("#open-shop-button"),
+  dailySummary: document.querySelector("#daily-summary"),
+  dailyList: document.querySelector("#daily-list"),
   profileMangaSummary: document.querySelector("#profile-manga-summary"),
   profileMangaList: document.querySelector("#profile-manga-list"),
   historySummary: document.querySelector("#history-summary"),
@@ -258,6 +276,10 @@ const dom = {
   avatarModal: document.querySelector("#avatar-modal"),
   closeAvatarModal: document.querySelector("#close-avatar-modal"),
   avatarGallery: document.querySelector("#avatar-gallery"),
+  shopModal: document.querySelector("#shop-modal"),
+  closeShopModal: document.querySelector("#close-shop-modal"),
+  shopPoints: document.querySelector("#shop-points"),
+  shopGallery: document.querySelector("#shop-gallery"),
   toast: document.querySelector("#toast"),
 };
 
@@ -814,15 +836,183 @@ function getStats(chapters = state.chapters) {
   };
 }
 
+function padDatePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function getTodayKey(date = new Date()) {
+  return [
+    date.getFullYear(),
+    padDatePart(date.getMonth() + 1),
+    padDatePart(date.getDate()),
+  ].join("-");
+}
+
+function hashSeed(value) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function seededRandom(seed) {
+  let value = seed >>> 0;
+
+  return () => {
+    value += 0x6D2B79F5;
+    let result = value;
+    result = Math.imul(result ^ (result >>> 15), result | 1);
+    result ^= result + Math.imul(result ^ (result >>> 7), result | 61);
+    return ((result ^ (result >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWithSeed(items, seedValue) {
+  const shuffled = [...items];
+  const random = seededRandom(hashSeed(seedValue));
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
+}
+
+function isChapterRead(chapterId) {
+  const catalogChapter = getChapterByCatalogId(chapterId);
+
+  if (!catalogChapter) {
+    return false;
+  }
+
+  return state.chapters.some((chapter) => {
+    return chapter.chapterCatalogId === chapterId
+      || (
+        chapter.mangaKey === catalogChapter.mangaKey
+        && Number(chapter.chapterNumber) === Number(catalogChapter.chapterNumber)
+      );
+  });
+}
+
+function getNextUnreadChaptersByManga() {
+  return defaultCatalog
+    .map((manga) => {
+      const chapters = state.chapterCatalog
+        .filter((chapter) => chapter.mangaKey === manga.key)
+        .sort((a, b) => Number(a.chapterNumber) - Number(b.chapterNumber));
+
+      return chapters.find((chapter) => !isChapterRead(chapter.id));
+    })
+    .filter(Boolean);
+}
+
+function buildDailyQuestIds(dateKey = getTodayKey()) {
+  const candidates = getNextUnreadChaptersByManga();
+  const seed = `${state.user?.id || "anon"}:${dateKey}`;
+
+  return shuffleWithSeed(candidates, seed)
+    .slice(0, DAILY_QUEST_COUNT)
+    .map((chapter) => chapter.id);
+}
+
+function getDailyQuestDocId(dateKey = state.dailyDateKey) {
+  return `${state.user.id}_${dateKey}`;
+}
+
+function getDailyClaimId(chapterId, dateKey = state.dailyDateKey) {
+  return `${state.user.id}_${dateKey}_${chapterId}`;
+}
+
+function getAvatarPurchaseId(avatarId) {
+  return `${state.user.id}_${avatarId}`;
+}
+
+function getLocalRewardKey(type) {
+  return `${LOCAL_REWARD_KEY_PREFIX}:${type}:${state.user?.id || "guest"}`;
+}
+
+function readLocalRewardRecords(type) {
+  try {
+    return JSON.parse(localStorage.getItem(getLocalRewardKey(type)) || "[]");
+  } catch (error) {
+    console.warn("Nao consegui ler os premios locais.", error);
+    return [];
+  }
+}
+
+function writeLocalRewardRecords(type, records) {
+  localStorage.setItem(getLocalRewardKey(type), JSON.stringify(records));
+}
+
+function upsertLocalRewardRecord(type, record) {
+  const records = readLocalRewardRecords(type);
+  const nextRecords = records.some((item) => item.id === record.id)
+    ? records.map((item) => item.id === record.id ? record : item)
+    : [...records, record];
+
+  writeLocalRewardRecords(type, nextRecords);
+  return record;
+}
+
+function hasClaimedDailyChapter(chapterId, dateKey = state.dailyDateKey) {
+  return state.dailyClaims.some((claim) => {
+    return claim.chapterId === chapterId && claim.dateKey === dateKey;
+  });
+}
+
+function getDailyQuestByChapterId(chapterId) {
+  return state.dailyQuests.find((chapter) => chapter.id === chapterId);
+}
+
+function getLonerPointsEarned() {
+  return state.dailyClaims.reduce((total, claim) => {
+    return total + Number(claim.points || DAILY_POINT_VALUE);
+  }, 0);
+}
+
+function getLonerPointsSpent() {
+  return state.avatarPurchases.reduce((total, purchase) => {
+    return total + Number(purchase.cost || 0);
+  }, 0);
+}
+
+function getLonerPointsBalance() {
+  return Math.max(0, getLonerPointsEarned() - getLonerPointsSpent());
+}
+
+function isAvatarPurchased(avatarId) {
+  return state.avatarPurchases.some((purchase) => purchase.avatarId === avatarId);
+}
+
+function isAvatarUnlocked(avatar) {
+  if (!avatar) {
+    return false;
+  }
+
+  if (avatar.id === DEFAULT_AVATAR_ID) {
+    return true;
+  }
+
+  if (avatar.cost) {
+    return isAvatarPurchased(avatar.id);
+  }
+
+  return getStats().level >= Number(avatar.requiredLevel || 1);
+}
+
 function getAvatarById(avatarId) {
   return avatarCatalog.find((avatar) => avatar.id === avatarId) || avatarCatalog[0];
 }
 
 function getActiveAvatar() {
-  const stats = getStats();
   const selected = getAvatarById(state.user?.avatarId || DEFAULT_AVATAR_ID);
 
-  if (stats.level < selected.requiredLevel) {
+  if (!isAvatarUnlocked(selected)) {
     return getAvatarById(DEFAULT_AVATAR_ID);
   }
 
@@ -915,6 +1105,10 @@ function setView(viewId) {
 function showAuth() {
   state.user = null;
   state.chapters = [];
+  state.dailyQuests = [];
+  state.dailyClaims = [];
+  state.avatarPurchases = [];
+  state.dailyDateKey = "";
   switchAuth("login");
   dom.authScreen.classList.remove("is-hidden");
   dom.appShell.classList.add("is-hidden");
@@ -927,6 +1121,8 @@ async function showAppForUser(user) {
   localStorage.setItem(ACTIVE_USER_KEY, user.id);
   await refreshSupabaseCatalog();
   await refreshChapters(false);
+  await refreshRewards(false);
+  await refreshDailyQuests(false);
   await refreshRanking(false);
   dom.authScreen.classList.add("is-hidden");
   dom.appShell.classList.remove("is-hidden");
@@ -980,6 +1176,104 @@ async function refreshChapters(shouldRender = true) {
     const records = await getAllByIndex("chapters", "userId", state.user.id);
     state.chapters = records.sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
   }
+
+  if (shouldRender) {
+    renderAll();
+  }
+}
+
+async function refreshRewards(shouldRender = true) {
+  if (!state.user) {
+    state.dailyClaims = [];
+    state.avatarPurchases = [];
+    return;
+  }
+
+  if (isFirebaseDatabase()) {
+    try {
+      const [claimSnapshots, purchaseSnapshots] = await Promise.all([
+        getDocs(firestoreQuery(
+          collection(state.firebase.firestore, "dailyClaims"),
+          where("userId", "==", state.user.id)
+        )),
+        getDocs(firestoreQuery(
+          collection(state.firebase.firestore, "avatarPurchases"),
+          where("userId", "==", state.user.id)
+        )),
+      ]);
+
+      state.dailyClaims = claimSnapshots.docs.map((claimDoc) => ({
+        id: claimDoc.id,
+        ...claimDoc.data(),
+      }));
+      state.avatarPurchases = purchaseSnapshots.docs.map((purchaseDoc) => ({
+        id: purchaseDoc.id,
+        ...purchaseDoc.data(),
+      }));
+    } catch (error) {
+      console.warn("Premios online indisponiveis; usando dados locais.", error);
+      state.dailyClaims = readLocalRewardRecords("dailyClaims");
+      state.avatarPurchases = readLocalRewardRecords("avatarPurchases");
+    }
+  } else {
+    state.dailyClaims = readLocalRewardRecords("dailyClaims");
+    state.avatarPurchases = readLocalRewardRecords("avatarPurchases");
+  }
+
+  if (shouldRender) {
+    renderAll();
+  }
+}
+
+async function refreshDailyQuests(shouldRender = true) {
+  if (!state.user) {
+    state.dailyQuests = [];
+    state.dailyDateKey = "";
+    return;
+  }
+
+  const dateKey = getTodayKey();
+  state.dailyDateKey = dateKey;
+  let chapterIds = [];
+
+  if (isFirebaseDatabase()) {
+    const dailyRef = doc(state.firebase.firestore, "dailyQuests", getDailyQuestDocId(dateKey));
+
+    try {
+      const snapshot = await getDoc(dailyRef);
+
+      if (snapshot.exists()) {
+        chapterIds = Array.isArray(snapshot.data().chapterIds) ? snapshot.data().chapterIds : [];
+      } else {
+        chapterIds = buildDailyQuestIds(dateKey);
+        await setDoc(dailyRef, {
+          userId: state.user.id,
+          dateKey,
+          chapterIds,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      console.warn("Diarias online indisponiveis; usando sorteio local.", error);
+      chapterIds = buildDailyQuestIds(dateKey);
+    }
+  } else {
+    const storedQuests = readLocalRewardRecords(`dailyQuests:${dateKey}`);
+
+    if (storedQuests.length) {
+      chapterIds = storedQuests.map((quest) => quest.chapterId || quest.id).filter(Boolean);
+    } else {
+      chapterIds = buildDailyQuestIds(dateKey);
+      writeLocalRewardRecords(
+        `dailyQuests:${dateKey}`,
+        chapterIds.map((chapterId) => ({ id: chapterId, chapterId }))
+      );
+    }
+  }
+
+  state.dailyQuests = [...new Set(chapterIds)]
+    .map((chapterId) => getChapterByCatalogId(chapterId))
+    .filter(Boolean);
 
   if (shouldRender) {
     renderAll();
@@ -1226,8 +1520,11 @@ function renderProfile() {
   dom.chaptersRead.textContent = stats.chapters;
   dom.mangaCount.textContent = stats.mangas;
   dom.pagesRead.textContent = stats.pages;
+  dom.lonerPoints.textContent = getLonerPointsBalance();
   dom.profileMangaSummary.textContent = `${stats.mangas} mangas`;
   dom.historySummary.textContent = `${stats.chapters} capitulos`;
+
+  renderDailyQuests();
 
   if (!summaries.length) {
     dom.profileMangaList.innerHTML = `
@@ -1275,6 +1572,73 @@ function renderProfile() {
       })
       .join("");
   }
+}
+
+function renderDailyQuests() {
+  if (!state.user) {
+    return;
+  }
+
+  const total = state.dailyQuests.length;
+  const completed = state.dailyQuests.filter((chapter) => hasClaimedDailyChapter(chapter.id)).length;
+  dom.dailySummary.textContent = `${completed}/${total || DAILY_QUEST_COUNT} feitas`;
+
+  if (!total) {
+    dom.dailyList.innerHTML = `
+      <div class="empty-state">
+        <strong>Sem diarias disponiveis</strong>
+        <span>Adicione capitulos no catalogo para liberar desafios.</span>
+      </div>
+    `;
+    return;
+  }
+
+  dom.dailyList.innerHTML = state.dailyQuests
+    .map((chapter) => {
+      const read = isChapterRead(chapter.id);
+      const claimed = hasClaimedDailyChapter(chapter.id);
+      const status = claimed
+        ? "Ponto recebido"
+        : read
+          ? "Capitulo lido"
+          : "+1 Ponto Loner";
+      const action = claimed
+        ? `<span class="daily-status is-complete">Concluida</span>`
+        : read
+          ? `
+            <button class="primary-action" type="button" data-claim-daily-chapter-id="${chapter.id}">
+              Receber 1 Ponto
+            </button>
+          `
+          : `
+            <button class="primary-action" type="button" data-daily-register-chapter-id="${chapter.id}">
+              Registrar Cap. ${chapter.chapterNumber}
+            </button>
+          `;
+
+      return `
+        <article class="daily-card">
+          <img src="${escapeHtml(chapter.cover || "")}" alt="Capa de ${escapeHtml(chapter.mangaTitle)}">
+          <div>
+            <p class="eyebrow">${escapeHtml(status)}</p>
+            <h4>${escapeHtml(chapter.mangaTitle)}</h4>
+            <span>Capitulo ${chapter.chapterNumber} - ${chapter.xp} XP</span>
+          </div>
+          <div class="daily-action">
+            ${action}
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  dom.dailyList.querySelectorAll("[data-daily-register-chapter-id]").forEach((button) => {
+    button.addEventListener("click", () => registerDailyChapter(button.dataset.dailyRegisterChapterId));
+  });
+
+  dom.dailyList.querySelectorAll("[data-claim-daily-chapter-id]").forEach((button) => {
+    button.addEventListener("click", () => claimDailyPointForChapter(button.dataset.claimDailyChapterId));
+  });
 }
 
 function renderMangaOptions() {
@@ -1437,12 +1801,13 @@ function renderDatabase() {
 }
 
 function renderAvatarGallery() {
-  const stats = getStats();
-
   dom.avatarGallery.innerHTML = avatarCatalog
     .map((avatar) => {
-      const unlocked = stats.level >= avatar.requiredLevel;
+      const unlocked = isAvatarUnlocked(avatar);
       const selected = getActiveAvatar().id === avatar.id;
+      const label = avatar.cost
+        ? unlocked ? "Comprado" : `${avatar.cost} Pontos Loner`
+        : `Level ${avatar.requiredLevel}`;
 
       return `
         <button
@@ -1453,7 +1818,7 @@ function renderAvatarGallery() {
         >
           <img src="${avatar.src}" alt="${escapeHtml(avatar.name)}">
           <strong>${escapeHtml(avatar.name)}</strong>
-          <span>Level ${avatar.requiredLevel}</span>
+          <span>${escapeHtml(label)}</span>
         </button>
       `;
     })
@@ -1461,6 +1826,56 @@ function renderAvatarGallery() {
 
   dom.avatarGallery.querySelectorAll("[data-avatar-id]").forEach((button) => {
     button.addEventListener("click", () => selectAvatar(button.dataset.avatarId));
+  });
+}
+
+function renderShopGallery() {
+  const balance = getLonerPointsBalance();
+  const shopAvatars = avatarCatalog.filter((avatar) => avatar.cost);
+
+  dom.shopPoints.textContent = `${balance} Pontos Loner`;
+
+  if (!shopAvatars.length) {
+    dom.shopGallery.innerHTML = `
+      <div class="empty-state">
+        <strong>Nenhum avatar na loja</strong>
+        <span>Novos avatares entram aqui.</span>
+      </div>
+    `;
+    return;
+  }
+
+  dom.shopGallery.innerHTML = shopAvatars
+    .map((avatar) => {
+      const purchased = isAvatarPurchased(avatar.id);
+      const selected = getActiveAvatar().id === avatar.id;
+      const canBuy = balance >= Number(avatar.cost || 0);
+      const actionText = purchased
+        ? selected ? "Selecionado" : "Usar avatar"
+        : `Comprar por ${avatar.cost}`;
+
+      return `
+        <article class="shop-item ${selected ? "is-selected" : ""}">
+          <img src="${avatar.src}" alt="${escapeHtml(avatar.name)}">
+          <div>
+            <strong>${escapeHtml(avatar.name)}</strong>
+            <span>${avatar.cost} Pontos Loner</span>
+          </div>
+          <button
+            class="${purchased ? "ghost-button" : "primary-action"}"
+            type="button"
+            data-shop-avatar-id="${avatar.id}"
+            ${(!purchased && !canBuy) || selected ? "disabled" : ""}
+          >
+            ${escapeHtml(actionText)}
+          </button>
+        </article>
+      `;
+    })
+    .join("");
+
+  dom.shopGallery.querySelectorAll("[data-shop-avatar-id]").forEach((button) => {
+    button.addEventListener("click", () => purchaseOrSelectShopAvatar(button.dataset.shopAvatarId));
   });
 }
 
@@ -1473,11 +1888,24 @@ function closeAvatarModal() {
   dom.avatarModal.classList.add("is-hidden");
 }
 
+function openShopModal() {
+  renderShopGallery();
+  dom.shopModal.classList.remove("is-hidden");
+}
+
+function closeShopModal() {
+  dom.shopModal.classList.add("is-hidden");
+}
+
 async function selectAvatar(avatarId) {
   const avatar = getAvatarById(avatarId);
-  const stats = getStats();
 
-  if (stats.level < avatar.requiredLevel) {
+  if (!isAvatarUnlocked(avatar)) {
+    if (avatar.cost) {
+      showToast("Compre esse avatar com Pontos Loner antes de usar.");
+      return;
+    }
+
     showToast(`Esse avatar libera no level ${avatar.requiredLevel}.`);
     return;
   }
@@ -1515,7 +1943,60 @@ async function selectAvatar(avatarId) {
   await refreshRanking(false);
   renderAll();
   renderAvatarGallery();
+  if (!dom.shopModal.classList.contains("is-hidden")) {
+    renderShopGallery();
+  }
   showToast(`${avatar.name} selecionado.`);
+}
+
+async function purchaseOrSelectShopAvatar(avatarId) {
+  const avatar = getAvatarById(avatarId);
+
+  if (!avatar.cost) {
+    await selectAvatar(avatarId);
+    return;
+  }
+
+  if (isAvatarPurchased(avatarId)) {
+    await selectAvatar(avatarId);
+    return;
+  }
+
+  if (getLonerPointsBalance() < avatar.cost) {
+    showToast(`Voce precisa de ${avatar.cost} Pontos Loner para comprar ${avatar.name}.`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const purchase = {
+    id: getAvatarPurchaseId(avatarId),
+    userId: state.user.id,
+    avatarId,
+    cost: avatar.cost,
+    createdAt: now,
+  };
+
+  if (isFirebaseDatabase()) {
+    try {
+      await setDoc(doc(state.firebase.firestore, "avatarPurchases", purchase.id), {
+        userId: purchase.userId,
+        avatarId: purchase.avatarId,
+        cost: purchase.cost,
+        createdAt: purchase.createdAt,
+      });
+    } catch (error) {
+      console.error(error);
+      showToast("Nao consegui comprar. Publique as regras novas do Firebase.");
+      return;
+    }
+  } else {
+    upsertLocalRewardRecord("avatarPurchases", purchase);
+  }
+
+  state.avatarPurchases = [...state.avatarPurchases, purchase];
+  await selectAvatar(avatarId);
+  closeShopModal();
+  showToast(`${avatar.name} comprado por ${avatar.cost} Pontos Loner.`);
 }
 
 function prefillChapterForm(title = "", chapterNumber = 1, pages = 35) {
@@ -1832,6 +2313,71 @@ async function registerCatalogChapter(chapterId) {
   }
 
   await saveLocalCatalogChapter(catalogChapter);
+}
+
+async function registerDailyChapter(chapterId) {
+  await registerCatalogChapter(chapterId);
+
+  if (isChapterRead(chapterId)) {
+    await claimDailyPointForChapter(chapterId);
+  }
+}
+
+async function claimDailyPointForChapter(chapterId) {
+  if (!state.user) {
+    showToast("Entre na conta antes de receber Pontos Loner.");
+    return false;
+  }
+
+  const dailyQuest = getDailyQuestByChapterId(chapterId);
+
+  if (!dailyQuest) {
+    showToast("Esse capitulo nao esta nas suas diarias de hoje.");
+    return false;
+  }
+
+  if (!isChapterRead(chapterId)) {
+    showToast("Registre a leitura desse capitulo para receber o Ponto Loner.");
+    return false;
+  }
+
+  if (hasClaimedDailyChapter(chapterId)) {
+    showToast("Esse Ponto Loner ja foi recebido hoje.");
+    return false;
+  }
+
+  const now = new Date().toISOString();
+  const claim = {
+    id: getDailyClaimId(chapterId),
+    userId: state.user.id,
+    dateKey: state.dailyDateKey,
+    chapterId,
+    points: DAILY_POINT_VALUE,
+    createdAt: now,
+  };
+
+  if (isFirebaseDatabase()) {
+    try {
+      await setDoc(doc(state.firebase.firestore, "dailyClaims", claim.id), {
+        userId: claim.userId,
+        dateKey: claim.dateKey,
+        chapterId: claim.chapterId,
+        points: claim.points,
+        createdAt: claim.createdAt,
+      });
+    } catch (error) {
+      console.error(error);
+      showToast("Nao consegui salvar o Ponto Loner. Publique as regras novas do Firebase.");
+      return false;
+    }
+  } else {
+    upsertLocalRewardRecord("dailyClaims", claim);
+  }
+
+  state.dailyClaims = [...state.dailyClaims, claim];
+  renderAll();
+  showToast(`Diaria concluida. +${DAILY_POINT_VALUE} Ponto Loner.`);
+  return true;
 }
 
 async function saveLocalCatalogChapter(catalogChapter) {
@@ -2187,7 +2733,7 @@ async function boot() {
     }
 
     const activeUserId = localStorage.getItem(ACTIVE_USER_KEY);
-    if (activeUserId) {
+    if (activeUserId && !isFirebaseDatabase() && !isSupabaseDatabase()) {
       const user = await getRecord("users", activeUserId);
 
       if (user) {
@@ -2225,6 +2771,13 @@ dom.closeAvatarModal.addEventListener("click", closeAvatarModal);
 dom.avatarModal.addEventListener("click", (event) => {
   if (event.target === dom.avatarModal) {
     closeAvatarModal();
+  }
+});
+dom.openShopButton.addEventListener("click", openShopModal);
+dom.closeShopModal.addEventListener("click", closeShopModal);
+dom.shopModal.addEventListener("click", (event) => {
+  if (event.target === dom.shopModal) {
+    closeShopModal();
   }
 });
 

@@ -22,6 +22,12 @@ service cloud.firestore {
       ];
     }
 
+    function validShopAvatar(avatarId) {
+      return avatarId in [
+        'shop-yuji-itadori',
+      ];
+    }
+
     match /profiles/{userId} {
       allow read: if true;
       allow create, update: if signedIn()
@@ -47,6 +53,55 @@ service cloud.firestore {
           'userId',
           'chapterId',
           'readAt',
+          'createdAt'
+        ]);
+      allow update, delete: if false;
+    }
+
+    match /dailyQuests/{questId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && questId == request.auth.uid + '_' + request.resource.data.dateKey
+        && request.resource.data.chapterIds is list
+        && request.resource.data.chapterIds.size() <= 3
+        && request.resource.data.keys().hasOnly([
+          'userId',
+          'dateKey',
+          'chapterIds',
+          'createdAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /dailyClaims/{claimId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && claimId == request.auth.uid + '_' + request.resource.data.dateKey + '_' + request.resource.data.chapterId
+        && validChapter(request.resource.data.chapterId)
+        && request.resource.data.points == 1
+        && request.resource.data.keys().hasOnly([
+          'userId',
+          'dateKey',
+          'chapterId',
+          'points',
+          'createdAt'
+        ]);
+      allow update, delete: if false;
+    }
+
+    match /avatarPurchases/{purchaseId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && purchaseId == request.auth.uid + '_' + request.resource.data.avatarId
+        && validShopAvatar(request.resource.data.avatarId)
+        && request.resource.data.cost == 100
+        && request.resource.data.keys().hasOnly([
+          'userId',
+          'avatarId',
+          'cost',
           'createdAt'
         ]);
       allow update, delete: if false;
