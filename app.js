@@ -51,6 +51,13 @@ const defaultCatalog = [
     cover: "assets/covers/alien-headbutt.jpg",
     defaultPages: 50,
   },
+  {
+    key: "chainsaw-man",
+    title: "Chainsaw Man",
+    author: "Tatsuki Fujimoto",
+    cover: "assets/covers/chainsaw-man.jpg",
+    defaultPages: 53,
+  },
 ];
 
 const defaultChapterCatalog = [
