@@ -12,6 +12,7 @@ import {
   getDoc,
   getDocs,
   getFirestore,
+  onSnapshot,
   query as firestoreQuery,
   setDoc,
   where,
@@ -21,6 +22,8 @@ const DB_NAME = "manga-loner-db";
 const DB_VERSION = 1;
 const ACTIVE_USER_KEY = "manga-loner-db:active-user";
 const DEFAULT_AVATAR_ID = "level-1-luffy";
+const THEME_KEY = "manga-loner-theme";
+const CHAPTER_XP = 50;
 const DAILY_QUEST_COUNT = 3;
 const DAILY_POINT_VALUE = 1;
 const LOCAL_REWARD_KEY_PREFIX = "manga-loner-rewards";
@@ -31,157 +34,77 @@ const defaultCatalog = [
     title: "Gachiakuta",
     author: "Kei Urana",
     cover: "assets/covers/gachiakuta.jpg",
-    defaultPages: 71,
+    defaultPages: CHAPTER_XP,
+    totalChapters: 166,
+    status: "Em andamento",
   },
   {
     key: "one-piece",
     title: "One Piece",
     author: "Eiichiro Oda",
     cover: "assets/covers/one-piece.jpg",
-    defaultPages: 60,
+    defaultPages: CHAPTER_XP,
+    totalChapters: 1176,
+    status: "Em andamento",
   },
   {
     key: "naruto",
     title: "Naruto",
     author: "Masashi Kishimoto",
     cover: "assets/covers/naruto.webp",
-    defaultPages: 54,
+    defaultPages: CHAPTER_XP,
+    totalChapters: 700,
+    status: "Finalizado",
   },
   {
     key: "jujutsu-kaisen",
     title: "Jujutsu Kaisen",
     author: "Gege Akutami",
     cover: "assets/covers/jujutsu-kaisen.jpg",
-    defaultPages: 54,
+    defaultPages: CHAPTER_XP,
+    totalChapters: 272,
+    status: "Finalizado",
   },
   {
     key: "alien-headbutt",
     title: "Alien Headbutt",
     author: "Akira Inui",
     cover: "assets/covers/alien-headbutt.jpg",
-    defaultPages: 50,
+    defaultPages: CHAPTER_XP,
+    totalChapters: 5,
+    status: "Em andamento",
   },
   {
     key: "chainsaw-man",
     title: "Chainsaw Man",
     author: "Tatsuki Fujimoto",
     cover: "assets/covers/chainsaw-man.webp",
-    defaultPages: 53,
+    defaultPages: CHAPTER_XP,
+    totalChapters: 232,
+    status: "Em andamento",
   },
 ];
 
-const defaultChapterCatalog = [
-  {
-    id: "local-gachiakuta-1",
-    mangaKey: "gachiakuta",
-    mangaTitle: "Gachiakuta",
-    author: "Kei Urana",
-    cover: "assets/covers/gachiakuta.jpg",
-    chapterNumber: 1,
-    xp: 71,
-    pages: 71,
-  },
-  {
-    id: "local-gachiakuta-2",
-    mangaKey: "gachiakuta",
-    mangaTitle: "Gachiakuta",
-    author: "Kei Urana",
-    cover: "assets/covers/gachiakuta.jpg",
-    chapterNumber: 2,
-    xp: 42,
-    pages: 42,
-  },
-  {
-    id: "local-alien-headbutt-1",
-    mangaKey: "alien-headbutt",
-    mangaTitle: "Alien Headbutt",
-    author: "Akira Inui",
-    cover: "assets/covers/alien-headbutt.jpg",
-    chapterNumber: 1,
-    xp: 50,
-    pages: 50,
-  },
-  {
-    id: "local-naruto-1",
-    mangaKey: "naruto",
-    mangaTitle: "Naruto",
-    author: "Masashi Kishimoto",
-    cover: "assets/covers/naruto.webp",
-    chapterNumber: 1,
-    xp: 54,
-    pages: 54,
-  },
-  {
-    id: "local-naruto-2",
-    mangaKey: "naruto",
-    mangaTitle: "Naruto",
-    author: "Masashi Kishimoto",
-    cover: "assets/covers/naruto.webp",
-    chapterNumber: 2,
-    xp: 23,
-    pages: 23,
-  },
-  {
-    id: "local-jujutsu-kaisen-1",
-    mangaKey: "jujutsu-kaisen",
-    mangaTitle: "Jujutsu Kaisen",
-    author: "Gege Akutami",
-    cover: "assets/covers/jujutsu-kaisen.jpg",
-    chapterNumber: 1,
-    xp: 54,
-    pages: 54,
-  },
-  {
-    id: "local-one-piece-1",
-    mangaKey: "one-piece",
-    mangaTitle: "One Piece",
-    author: "Eiichiro Oda",
-    cover: "assets/covers/one-piece.jpg",
-    chapterNumber: 1,
-    xp: 60,
-    pages: 60,
-  },
-  {
-    id: "local-one-piece-2",
-    mangaKey: "one-piece",
-    mangaTitle: "One Piece",
-    author: "Eiichiro Oda",
-    cover: "assets/covers/one-piece.jpg",
-    chapterNumber: 2,
-    xp: 25,
-    pages: 25,
-  },
-    {
-    id: "local-one-piece-3",
-    mangaKey: "one-piece",
-    mangaTitle: "One Piece",
-    author: "Eiichiro Oda",
-    cover: "assets/covers/one-piece.jpg",
-    chapterNumber: 3,
-    xp: 22,
-    pages: 22,
-  },
-      {
-    id: "local-chainsaw-man-1",
-    mangaKey: "chainsaw-man",
-    mangaTitle: "Chainsaw Man",
-    author: "Tatsuki Fujimoto",
-    cover: "assets/covers/chainsaw-man.webp",
-    chapterNumber: 1,
-    xp: 53,
-    pages: 53,
-  },
-        {
-    id: "local-chainsaw-man-2",
-    mangaKey: "chainsaw-man",
-    mangaTitle: "Chainsaw Man",
-    author: "Tatsuki Fujimoto",
-    cover: "assets/covers/chainsaw-man.webp",
-    chapterNumber: 2,
-    xp: 26,
-    pages: 26,
-  },
-];
+function buildChapterCatalog() {
+  return defaultCatalog.flatMap((manga) => {
+    return Array.from({ length: manga.totalChapters }, (_, index) => {
+      const chapterNumber = index + 1;
+
+      return {
+        id: `local-${manga.key}-${chapterNumber}`,
+        mangaKey: manga.key,
+        mangaTitle: manga.title,
+        author: manga.author,
+        cover: manga.cover,
+        chapterNumber,
+        xp: CHAPTER_XP,
+        pages: CHAPTER_XP,
+      };
+    });
+  });
+}
+
+const defaultChapterCatalog = buildChapterCatalog();
 
 const avatarCatalog = [
   {
@@ -210,6 +133,7 @@ const state = {
   firebase: null,
   supabase: null,
   user: null,
+  theme: localStorage.getItem(THEME_KEY) || "light",
   chapters: [],
   chapterCatalog: [...defaultChapterCatalog],
   dailyQuests: [],
@@ -219,6 +143,8 @@ const state = {
   ranking: [],
   search: "",
   toastTimer: null,
+  liveRefreshTimer: null,
+  liveUnsubscribers: [],
 };
 
 const dom = {
@@ -234,6 +160,7 @@ const dom = {
   miniAvatar: document.querySelector("#mini-avatar"),
   miniName: document.querySelector("#mini-name"),
   miniLevel: document.querySelector("#mini-level"),
+  themeToggleButton: document.querySelector("#theme-toggle-button"),
   quickAddButton: document.querySelector("#quick-add-button"),
   avatarButton: document.querySelector("#avatar-button"),
   profileAvatar: document.querySelector("#profile-avatar"),
@@ -523,6 +450,7 @@ function mapSupabaseProfile(profile, authUser) {
     email: authUser?.email || "",
     login: profile.login,
     avatarId: profile.avatar_id || DEFAULT_AVATAR_ID,
+    theme: state.theme,
     createdAt: profile.created_at,
     updatedAt: profile.updated_at,
   };
@@ -645,6 +573,7 @@ function mapFirebaseProfile(profileData, authUser) {
     email: authUser.email || "",
     login: profileData?.login || authUser.email?.split("@")[0] || "leitor",
     avatarId: profileData?.avatarId || DEFAULT_AVATAR_ID,
+    theme: normalizeTheme(profileData?.theme || state.theme),
     createdAt: profileData?.createdAt || new Date().toISOString(),
     updatedAt: profileData?.updatedAt || profileData?.createdAt || new Date().toISOString(),
   };
@@ -690,6 +619,7 @@ async function ensureFirebaseProfile(authUser, fallback = {}) {
     email: authUser.email || fallback.email || "",
     login,
     avatarId: DEFAULT_AVATAR_ID,
+    theme: normalizeTheme(fallback.theme || state.theme),
     createdAt: now,
     updatedAt: now,
   };
@@ -723,6 +653,52 @@ function normalizeLogin(value) {
 
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeTheme(value) {
+  return value === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  state.theme = normalizeTheme(theme);
+  document.documentElement.dataset.theme = state.theme;
+  localStorage.setItem(THEME_KEY, state.theme);
+
+  if (dom.themeToggleButton) {
+    dom.themeToggleButton.textContent = state.theme === "dark" ? "Light mode" : "Dark mode";
+    dom.themeToggleButton.setAttribute("aria-pressed", String(state.theme === "dark"));
+  }
+}
+
+async function saveThemePreference(theme) {
+  const nextTheme = normalizeTheme(theme);
+  applyTheme(nextTheme);
+
+  if (!state.user) {
+    return;
+  }
+
+  const updatedAt = new Date().toISOString();
+  state.user.theme = nextTheme;
+  state.user.updatedAt = updatedAt;
+
+  try {
+    if (isFirebaseDatabase()) {
+      await setDoc(
+        doc(state.firebase.firestore, "profiles", state.user.id),
+        { theme: nextTheme, updatedAt },
+        { merge: true }
+      );
+    } else if (!isSupabaseDatabase()) {
+      await putRecord("users", state.user);
+    }
+  } catch (error) {
+    console.warn("Nao consegui salvar o tema no perfil.", error);
+  }
+}
+
+function toggleTheme() {
+  saveThemePreference(state.theme === "dark" ? "light" : "dark");
 }
 
 function slugify(value) {
@@ -1032,7 +1008,7 @@ function getDefaultPages(title) {
   const mangaKey = slugify(title);
   const firstChapter = state.chapterCatalog.find((chapter) => chapter.mangaKey === mangaKey);
 
-  return firstChapter?.xp || getCatalogByTitle(title)?.defaultPages || 35;
+  return firstChapter?.xp || getCatalogByTitle(title)?.defaultPages || CHAPTER_XP;
 }
 
 function getCatalogChapter(title, chapterNumber) {
@@ -1084,6 +1060,65 @@ function showToast(message) {
   }, 3200);
 }
 
+function stopLiveUpdates() {
+  state.liveUnsubscribers.forEach((unsubscribe) => unsubscribe());
+  state.liveUnsubscribers = [];
+  window.clearTimeout(state.liveRefreshTimer);
+}
+
+function scheduleFirebaseLiveRefresh() {
+  window.clearTimeout(state.liveRefreshTimer);
+  state.liveRefreshTimer = window.setTimeout(async () => {
+    if (!state.user || !isFirebaseDatabase()) {
+      return;
+    }
+
+    try {
+      await refreshChapters(false);
+      await refreshRewards(false);
+      await refreshDailyQuests(false);
+      await refreshRanking(false);
+      renderAll();
+    } catch (error) {
+      console.warn("Nao consegui atualizar em tempo real.", error);
+    }
+  }, 350);
+}
+
+function startFirebaseLiveUpdates() {
+  stopLiveUpdates();
+
+  if (!state.user || !isFirebaseDatabase()) {
+    return;
+  }
+
+  const currentUserReads = firestoreQuery(
+    collection(state.firebase.firestore, "readChapters"),
+    where("userId", "==", state.user.id)
+  );
+  const currentUserClaims = firestoreQuery(
+    collection(state.firebase.firestore, "dailyClaims"),
+    where("userId", "==", state.user.id)
+  );
+  const currentUserPurchases = firestoreQuery(
+    collection(state.firebase.firestore, "avatarPurchases"),
+    where("userId", "==", state.user.id)
+  );
+  const watchTargets = [
+    currentUserReads,
+    currentUserClaims,
+    currentUserPurchases,
+    collection(state.firebase.firestore, "profiles"),
+    collection(state.firebase.firestore, "readChapters"),
+  ];
+
+  state.liveUnsubscribers = watchTargets.map((target) => {
+    return onSnapshot(target, scheduleFirebaseLiveRefresh, (error) => {
+      console.warn("Atualizacao em tempo real indisponivel.", error);
+    });
+  });
+}
+
 function switchAuth(mode) {
   const isLogin = mode === "login";
   dom.loginTab.classList.toggle("is-active", isLogin);
@@ -1103,6 +1138,7 @@ function setView(viewId) {
 }
 
 function showAuth() {
+  stopLiveUpdates();
   state.user = null;
   state.chapters = [];
   state.dailyQuests = [];
@@ -1118,6 +1154,7 @@ function showAuth() {
 
 async function showAppForUser(user) {
   state.user = user;
+  applyTheme(user.theme || state.theme);
   localStorage.setItem(ACTIVE_USER_KEY, user.id);
   await refreshSupabaseCatalog();
   await refreshChapters(false);
@@ -1128,6 +1165,7 @@ async function showAppForUser(user) {
   dom.appShell.classList.remove("is-hidden");
   setView("profile-view");
   renderAll();
+  startFirebaseLiveUpdates();
 }
 
 async function refreshChapters(shouldRender = true) {
@@ -1410,6 +1448,8 @@ function buildMangaSummaries(includeCatalog = false) {
         cover: catalog?.cover || chapter.cover || "",
         author: catalog?.author || "Catalogo pessoal",
         defaultPages: catalog?.defaultPages || 35,
+        totalChapters: catalog?.totalChapters || 0,
+        status: catalog?.status || "Catalogo pessoal",
         chapters: [],
         pages: 0,
         xp: 0,
@@ -1437,6 +1477,8 @@ function buildMangaSummaries(includeCatalog = false) {
           cover: manga.cover,
           author: manga.author,
           defaultPages: manga.defaultPages,
+          totalChapters: manga.totalChapters,
+          status: manga.status,
           chapters: [],
           pages: 0,
           xp: 0,
@@ -1642,11 +1684,7 @@ function renderDailyQuests() {
 }
 
 function renderMangaOptions() {
-  const options = Array.from(
-    new Map(
-      state.chapterCatalog.map((chapter) => [chapter.mangaKey, chapter.mangaTitle])
-    ).values()
-  );
+  const options = defaultCatalog.map((manga) => manga.title);
 
   dom.mangaOptions.innerHTML = options
     .map((title) => `<option value="${escapeHtml(title)}"></option>`)
@@ -1720,6 +1758,8 @@ function renderMangaList() {
             </div>
             <div class="manga-stats">
               <span>${summary.chapters.length} lidos</span>
+              <span>${summary.totalChapters} capitulos</span>
+              <span>${escapeHtml(summary.status)}</span>
               <span>${summary.pages} paginas</span>
               <span>${summary.xp} XP</span>
             </div>
@@ -2065,6 +2105,7 @@ async function handleRegister(event) {
     passwordSalt: salt,
     passwordHash: await hashPassword(password, salt),
     avatarId: DEFAULT_AVATAR_ID,
+    theme: state.theme,
     createdAt: now,
     updatedAt: now,
   };
@@ -2098,6 +2139,7 @@ async function handleFirebaseRegister({ displayName, email, login, password }) {
       email,
       login: normalizeLogin(login),
       avatarId: DEFAULT_AVATAR_ID,
+      theme: state.theme,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -2598,6 +2640,7 @@ function exportCurrentUserData() {
       login: state.user.login,
       email: state.user.email,
       avatarId: state.user.avatarId,
+      theme: state.user.theme || state.theme,
       createdAt: state.user.createdAt,
     },
     chapters: state.chapters.map((chapter) => ({
@@ -2755,6 +2798,7 @@ dom.registerTab.addEventListener("click", () => switchAuth("register"));
 dom.loginForm.addEventListener("submit", handleLogin);
 dom.registerForm.addEventListener("submit", handleRegister);
 dom.logoutButton.addEventListener("click", logout);
+dom.themeToggleButton.addEventListener("click", toggleTheme);
 dom.quickAddButton.addEventListener("click", () => setView("manga-view"));
 dom.chapterForm.addEventListener("submit", handleChapterSubmit);
 dom.mangaSearch.addEventListener("input", () => {
@@ -2785,4 +2829,5 @@ dom.navButtons.forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.view));
 });
 
+applyTheme(state.theme);
 boot();

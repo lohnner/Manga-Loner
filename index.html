@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Manga Loner</title>
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=9">
   </head>
   <body>
     <div id="auth-screen" class="auth-shell">
@@ -73,6 +73,8 @@
             <span id="mini-level">Level 1</span>
           </div>
         </div>
+
+        <button id="theme-toggle-button" class="ghost-button theme-toggle" type="button">Dark mode</button>
 
         <nav class="nav-tabs" aria-label="Abas">
           <button class="nav-button is-active" type="button" data-view="profile-view">Perfil</button>
@@ -202,8 +204,8 @@
               </label>
 
               <label>
-                XP do capitulo
-                <input id="page-count-input" name="pages" type="number" min="1" max="300" step="1" inputmode="numeric" value="35" required>
+                XP fixo
+                <input id="page-count-input" name="pages" type="number" min="1" max="300" step="1" inputmode="numeric" value="50" readonly required>
               </label>
 
               <label>
@@ -306,6 +308,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="firebase-config.js?v=5"></script>
-    <script type="module" src="app.js?v=8"></script>
+    <script type="module" src="app.js?v=9"></script>
   </body>
 </html>
