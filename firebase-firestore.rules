@@ -16,7 +16,7 @@ service cloud.firestore {
         'local-one-piece-2',
         'local-one-piece-3',
         'local-chainsaw-man-1',
-        'local-chainsaw-man-2'
+        'local-chainsaw-man-2',
       ];
     }
 
