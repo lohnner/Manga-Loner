@@ -102,6 +102,16 @@ const defaultChapterCatalog = [
     pages: 54,
   },
   {
+    id: "local-naruto-2",
+    mangaKey: "naruto",
+    mangaTitle: "Naruto",
+    author: "Masashi Kishimoto",
+    cover: "assets/covers/naruto.webp",
+    chapterNumber: 2,
+    xp: 23,
+    pages: 23,
+  },
+  {
     id: "local-one-piece-1",
     mangaKey: "one-piece",
     mangaTitle: "One Piece",
