@@ -93,6 +93,15 @@ const defaultCatalog = [
     totalChapters: 549,
     status: "Finalizado",
   },
+  {
+    key: "berserk",
+    title: "Berserk",
+    author: "Kentarou Miura",
+    cover: "https://cdn.myanimelist.net/images/manga/1/157897.jpg",
+    defaultPages: CHAPTER_XP,
+    totalChapters: 383,
+    status: "Em Andamento",
+  },
 ];
 
 function buildChapterCatalog() {

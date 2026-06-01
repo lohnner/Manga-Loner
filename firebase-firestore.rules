@@ -12,8 +12,9 @@ service cloud.firestore {
         || chapterId.matches('^local-gachiakuta-([1-9]|[1-9][0-9]|1[0-5][0-9]|16[0-6])$')
         || chapterId.matches('^local-alien-headbutt-[1-5]$')
         || chapterId.matches('^local-chainsaw-man-([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-2][0-9]|23[0-2])$')
-        || chapterId.matches('^local-jujutsu-kaisen-([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-6][0-9]|27[0-2])$');
+        || chapterId.matches('^local-jujutsu-kaisen-([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-6][0-9]|27[0-2])$')
         || chapterId.matches('^local-fairy-tail-([1-9]|[1-9][0-9]|[1-4][0-9][0-9]|5[0-3][0-9]|54[0-9])$')
+        || chapterId.matches("^local-berserk-([1-9]|[1-9][0-9]|[1-2][0-9][0-9]|3[0-7][0-9]|38[0-3])$");
     }
 
     function validShopAvatar(avatarId) {
