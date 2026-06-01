@@ -139,6 +139,12 @@ const avatarCatalog = [
     src: "assets/avatars/level-5-naruto.png",
   },
   {
+    id: "level-10-natsu-dragneel",
+    name: "Natsu-Dragneel",
+    requiredLevel: 10,
+    src: "assets/avatars/level-10-natsu-dragneel.png",
+  },
+  {
     id: "shop-yuji-itadori",
     name: "Yuji Itadori",
     requiredLevel: 1,
