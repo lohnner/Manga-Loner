@@ -84,6 +84,15 @@ const defaultCatalog = [
     totalChapters: 232,
     status: "Em andamento",
   },
+  {
+    key: "fairy-tail",
+    title: "Fairy Tail",
+    author: "Hiro Mashima",
+    cover: "https://cdn.myanimelist.net/images/manga/3/198604.jpg",
+    defaultPages: CHAPTER_XP,
+    totalChapters: 549,
+    status: "Finalizado",
+  },
 ];
 
 function buildChapterCatalog() {
