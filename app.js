@@ -140,7 +140,7 @@ const avatarCatalog = [
   },
   {
     id: "level-10-natsu-dragneel",
-    name: "Natsu-Dragneel",
+    name: "Natsu Dragneel",
     requiredLevel: 10,
     src: "assets/avatars/level-10-natsu-dragneel.png",
   },
