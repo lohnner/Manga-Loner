@@ -37,7 +37,8 @@ const defaultCatalog = [
     cover: "assets/covers/gachiakuta.jpg",
     defaultPages: CHAPTER_XP,
     totalChapters: 166,
-    status: "Em andamento",
+    releaseYear: 2022,
+    status: "Em Andamento",
   },
   {
     key: "one-piece",
@@ -46,7 +47,8 @@ const defaultCatalog = [
     cover: "assets/covers/one-piece.jpg",
     defaultPages: CHAPTER_XP,
     totalChapters: 1176,
-    status: "Em andamento",
+    releaseYear: 1997,
+    status: "Em Andamento",
   },
   {
     key: "naruto",
@@ -55,6 +57,7 @@ const defaultCatalog = [
     cover: "assets/covers/naruto.webp",
     defaultPages: CHAPTER_XP,
     totalChapters: 700,
+    releaseYear: 1999,
     status: "Finalizado",
   },
   {
@@ -64,6 +67,7 @@ const defaultCatalog = [
     cover: "assets/covers/jujutsu-kaisen.jpg",
     defaultPages: CHAPTER_XP,
     totalChapters: 272,
+    releaseYear: 2018,
     status: "Finalizado",
   },
   {
@@ -73,7 +77,8 @@ const defaultCatalog = [
     cover: "assets/covers/alien-headbutt.jpg",
     defaultPages: CHAPTER_XP,
     totalChapters: 5,
-    status: "Em andamento",
+    releaseYear: 2026,
+    status: "Estr\u00e9ia",
   },
   {
     key: "chainsaw-man",
@@ -82,7 +87,8 @@ const defaultCatalog = [
     cover: "assets/covers/chainsaw-man.webp",
     defaultPages: CHAPTER_XP,
     totalChapters: 232,
-    status: "Em andamento",
+    releaseYear: 2018,
+    status: "Em Andamento",
   },
   {
     key: "fairy-tail",
@@ -91,6 +97,7 @@ const defaultCatalog = [
     cover: "https://cdn.myanimelist.net/images/manga/3/198604.jpg",
     defaultPages: CHAPTER_XP,
     totalChapters: 549,
+    releaseYear: 2006,
     status: "Finalizado",
   },
   {
@@ -100,6 +107,7 @@ const defaultCatalog = [
     cover: "https://cdn.myanimelist.net/images/manga/1/157897.jpg",
     defaultPages: CHAPTER_XP,
     totalChapters: 383,
+    releaseYear: 1989,
     status: "Em Andamento",
   },
   {
@@ -109,6 +117,7 @@ const defaultCatalog = [
     cover: "https://cdn.myanimelist.net/images/manga/2/250313.jpg",
     defaultPages: CHAPTER_XP,
     totalChapters: 1510,
+    releaseYear: 1989,
     status: "Em Andamento",
   },
 ];
@@ -811,6 +820,30 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function getStatusClass(status) {
+  const normalized = slugify(status);
+
+  if (normalized === "em-andamento") {
+    return "is-ongoing";
+  }
+
+  if (normalized === "finalizado") {
+    return "is-finished";
+  }
+
+  if (normalized === "estreia") {
+    return "is-premiere";
+  }
+
+  return "is-neutral";
+}
+
+function renderStatusBadge(status) {
+  const label = String(status || "Catalogo pessoal");
+
+  return `<span class="manga-status ${getStatusClass(label)}">${escapeHtml(label)}</span>`;
 }
 
 function makeId() {
@@ -1601,6 +1634,7 @@ function buildMangaSummaries(includeCatalog = false) {
         author: catalog?.author || "Catalogo pessoal",
         defaultPages: catalog?.defaultPages || 35,
         totalChapters: catalog?.totalChapters || 0,
+        releaseYear: catalog?.releaseYear || "",
         status: catalog?.status || "Catalogo pessoal",
         chapters: [],
         pages: 0,
@@ -1630,6 +1664,7 @@ function buildMangaSummaries(includeCatalog = false) {
           author: manga.author,
           defaultPages: manga.defaultPages,
           totalChapters: manga.totalChapters,
+          releaseYear: manga.releaseYear,
           status: manga.status,
           chapters: [],
           pages: 0,
@@ -1921,7 +1956,8 @@ function renderFallbackMangaList(search = "") {
             </div>
             <div class="manga-stats">
               <span>${formatReadProgress(readCount, manga.totalChapters)}</span>
-              <span>${escapeHtml(manga.status)}</span>
+              <span>Ano: ${manga.releaseYear}</span>
+              ${renderStatusBadge(manga.status)}
               <span>${readCount * CHAPTER_XP} XP</span>
             </div>
             <div class="manga-actions">
@@ -2031,7 +2067,8 @@ function renderMangaList() {
             </div>
             <div class="manga-stats">
               <span>${formatReadProgress(summary.chapters.length, summary.totalChapters)}</span>
-              <span>${escapeHtml(summary.status)}</span>
+              ${summary.releaseYear ? `<span>Ano: ${summary.releaseYear}</span>` : ""}
+              ${renderStatusBadge(summary.status)}
               <span>${summary.xp} XP</span>
             </div>
             <div class="manga-actions">

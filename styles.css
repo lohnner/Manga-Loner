@@ -763,6 +763,27 @@ img {
   font-weight: 820;
 }
 
+.manga-stats .manga-status {
+  border-color: transparent;
+  color: #fff;
+}
+
+.manga-stats .manga-status.is-ongoing {
+  background: #9b6b16;
+}
+
+.manga-stats .manga-status.is-finished {
+  background: #b72b2b;
+}
+
+.manga-stats .manga-status.is-premiere {
+  background: #2f7d57;
+}
+
+.manga-stats .manga-status.is-neutral {
+  background: var(--muted);
+}
+
 .manga-actions {
   display: flex;
   flex-wrap: wrap;
