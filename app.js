@@ -102,6 +102,15 @@ const defaultCatalog = [
     totalChapters: 383,
     status: "Em Andamento",
   },
+  {
+    key: "hajime-no-ippo",
+    title: "Hajime no Ippo",
+    author: "George Morikawa",
+    cover: "https://cdn.myanimelist.net/images/manga/2/250313.jpg",
+    defaultPages: CHAPTER_XP,
+    totalChapters: 1510,
+    status: "Em Andamento",
+  },
 ];
 
 function buildChapterCatalog() {
