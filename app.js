@@ -1707,17 +1707,14 @@ async function refreshRanking(shouldRender = true) {
       console.warn("Nao consegui carregar capitulos globais do Supabase.", chapterError);
       state.globalChapters = state.chapters.filter((chapter) => !isRemovedUser(chapter.userId));
     }
-    state.databaseStats = await getSupabaseDatabaseStats();
+    state.databaseStats = buildDatabaseStatsFromChapters(state.globalChapters);
   } else if (isApiDatabase()) {
     state.ranking = ((await getAllRecords("ranking")) || [])
       .filter((entry) => !isRemovedUser(entry.id));
     state.globalChapters = ((await getAllRecords("chapters")) || [])
       .filter((chapter) => !isRemovedUser(chapter.userId))
       .sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
-    state.databaseStats = await getAllRecords("databaseStats") || {
-      mangas: Math.max(0, ...state.ranking.map((entry) => Number(entry.mangas || 0))),
-      chapters: state.ranking.reduce((total, entry) => total + Number(entry.chapters || 0), 0),
-    };
+    state.databaseStats = buildDatabaseStatsFromChapters(state.globalChapters);
   } else {
     const users = await getAllRecords("users");
     const chapters = await getAllRecords("chapters");
