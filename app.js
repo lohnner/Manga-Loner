@@ -28,6 +28,11 @@ const CHAPTER_XP = 50;
 const DAILY_QUEST_COUNT = 3;
 const DAILY_POINT_VALUE = 1;
 const LOCAL_REWARD_KEY_PREFIX = "manga-loner-rewards";
+const REMOVED_USER_IDS = new Set([
+  "1gzg0mHjdnUxL063pvwI3UxZuc32",
+  "5H1XnAu5vdOpxJWpW6ZUP424DRq2",
+  "9TvapkAJNcg5UEIBVNnlsgeGqGu1",
+]);
 
 const defaultCatalog = [
   {
@@ -859,6 +864,10 @@ function renderStatusBadge(status) {
   return `<span class="manga-status ${getStatusClass(label)}">${escapeHtml(label)}</span>`;
 }
 
+function isRemovedUser(userId) {
+  return REMOVED_USER_IDS.has(String(userId || ""));
+}
+
 function makeId() {
   if (crypto.randomUUID) {
     return crypto.randomUUID();
@@ -1408,6 +1417,21 @@ function showAuth() {
 }
 
 async function showAppForUser(user) {
+  if (isRemovedUser(user?.id)) {
+    if (isFirebaseDatabase()) {
+      await signOut(state.firebase.auth);
+    }
+
+    if (isSupabaseDatabase()) {
+      await state.supabase.auth.signOut();
+    }
+
+    localStorage.removeItem(ACTIVE_USER_KEY);
+    showAuth();
+    showToast("Conta removida.");
+    return;
+  }
+
   state.user = user;
   applyTheme(user.theme || state.theme);
   localStorage.setItem(ACTIVE_USER_KEY, user.id);
