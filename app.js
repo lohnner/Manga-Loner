@@ -1216,6 +1216,10 @@ function buildMangaRanking(chapters = []) {
   const map = new Map();
 
   chapters.forEach((chapter) => {
+    if (Number(chapter.chapterNumber) !== 1) {
+      return;
+    }
+
     const mangaKey = chapter.mangaKey || slugify(chapter.mangaTitle);
 
     if (!mangaKey) {
@@ -2309,7 +2313,7 @@ function renderMangaRanking() {
     dom.mangaRankingList.innerHTML = `
       <div class="empty-state">
         <strong>Nenhum manga pontuou ainda</strong>
-        <span>Cada capitulo registrado vale 1 ponto para o manga.</span>
+        <span>Cada usuario que registrar o capitulo 1 vale 1 ponto para o manga.</span>
       </div>
     `;
     return;
