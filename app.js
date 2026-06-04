@@ -1609,9 +1609,14 @@ async function refreshRanking(shouldRender = true) {
     state.globalChapters = readSnapshots.docs
       .map(mapFirebaseChapter)
       .filter(Boolean)
+      .filter((chapter) => !isRemovedUser(chapter.userId))
       .sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
 
     profileSnapshots.docs.forEach((profileDoc) => {
+      if (isRemovedUser(profileDoc.id)) {
+        return;
+      }
+
       const profile = profileDoc.data();
       statsByUser.set(profileDoc.id, {
         id: profileDoc.id,
@@ -1668,7 +1673,9 @@ async function refreshRanking(shouldRender = true) {
       throw error;
     }
 
-    state.ranking = (data || []).map(mapSupabaseRanking);
+    state.ranking = (data || [])
+      .map(mapSupabaseRanking)
+      .filter((entry) => !isRemovedUser(entry.id));
     try {
       const { data: chapterData, error: chapterError } = await state.supabase
         .from("read_chapters")
@@ -1693,15 +1700,19 @@ async function refreshRanking(shouldRender = true) {
         throw chapterError;
       }
 
-      state.globalChapters = (chapterData || []).map(mapSupabaseChapter);
+      state.globalChapters = (chapterData || [])
+        .map(mapSupabaseChapter)
+        .filter((chapter) => !isRemovedUser(chapter.userId));
     } catch (chapterError) {
       console.warn("Nao consegui carregar capitulos globais do Supabase.", chapterError);
-      state.globalChapters = [...state.chapters];
+      state.globalChapters = state.chapters.filter((chapter) => !isRemovedUser(chapter.userId));
     }
     state.databaseStats = await getSupabaseDatabaseStats();
   } else if (isApiDatabase()) {
-    state.ranking = await getAllRecords("ranking");
+    state.ranking = ((await getAllRecords("ranking")) || [])
+      .filter((entry) => !isRemovedUser(entry.id));
     state.globalChapters = ((await getAllRecords("chapters")) || [])
+      .filter((chapter) => !isRemovedUser(chapter.userId))
       .sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
     state.databaseStats = await getAllRecords("databaseStats") || {
       mangas: Math.max(0, ...state.ranking.map((entry) => Number(entry.mangas || 0))),
@@ -1711,10 +1722,16 @@ async function refreshRanking(shouldRender = true) {
     const users = await getAllRecords("users");
     const chapters = await getAllRecords("chapters");
     const statsByUser = new Map();
-    state.globalChapters = chapters.sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
+    state.globalChapters = chapters
+      .filter((chapter) => !isRemovedUser(chapter.userId))
+      .sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
     state.databaseStats = buildDatabaseStatsFromChapters(state.globalChapters);
 
     users.forEach((user) => {
+      if (isRemovedUser(user.id)) {
+        return;
+      }
+
       statsByUser.set(user.id, {
         id: user.id,
         displayName: user.displayName,
