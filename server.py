@@ -303,6 +303,15 @@ class MangaOnlineHandler(SimpleHTTPRequestHandler):
         self.get_user(user_id)
 
     def get_chapters(self, query: dict[str, list[str]]) -> None:
+        include_all = query.get("all", [""])[0] == "1"
+
+        if include_all:
+            with connect() as connection:
+                rows = connection.execute("SELECT * FROM chapters ORDER BY read_at DESC").fetchall()
+
+            self.send_json([chapter_from_row(row) for row in rows])
+            return
+
         user_id = query.get("userId", [""])[0]
         if not user_id:
             self.send_json({"error": "Usuario obrigatorio."}, HTTPStatus.BAD_REQUEST)

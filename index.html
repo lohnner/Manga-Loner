@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Manga Loner</title>
-    <link rel="stylesheet" href="styles.css?v=10">
+    <link rel="stylesheet" href="styles.css?v=11">
   </head>
   <body>
     <div id="auth-screen" class="auth-shell">
@@ -80,6 +80,7 @@
           <button class="nav-button is-active" type="button" data-view="profile-view">Perfil</button>
           <button class="nav-button" type="button" data-view="manga-view">Mangas</button>
           <button class="nav-button" type="button" data-view="ranking-view">Ranking</button>
+          <button class="nav-button" type="button" data-view="manga-ranking-view">Ranking dos mangas</button>
           <button class="nav-button" type="button" data-view="database-view">Banco</button>
         </nav>
 
@@ -221,10 +222,26 @@
               <p class="eyebrow">Ranking</p>
               <h2 id="ranking-title">Mais XP</h2>
             </div>
+            <form class="search-form" role="search">
+              <label for="ranking-search">Pesquisar leitor</label>
+              <input id="ranking-search" type="search" autocomplete="off" placeholder="Nome ou login">
+            </form>
             <span id="ranking-summary" class="pill">0 usuarios</span>
           </div>
 
           <div id="ranking-list" class="ranking-list"></div>
+        </section>
+
+        <section id="manga-ranking-view" class="view" aria-labelledby="manga-ranking-title">
+          <div class="view-heading">
+            <div>
+              <p class="eyebrow">Ranking dos mangas</p>
+              <h2 id="manga-ranking-title">Mais lidos</h2>
+            </div>
+            <span id="manga-ranking-summary" class="pill">0 mangas</span>
+          </div>
+
+          <div id="manga-ranking-list" class="ranking-list"></div>
         </section>
 
         <section id="database-view" class="view" aria-labelledby="database-title">
@@ -304,9 +321,22 @@
       </div>
     </div>
 
+    <div id="reader-profile-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="reader-profile-title">
+      <div class="modal-panel reader-profile-panel">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow">Ranking</p>
+            <h2 id="reader-profile-title">Perfil do leitor</h2>
+          </div>
+          <button id="close-reader-profile-modal" class="icon-button" type="button" aria-label="Fechar">x</button>
+        </div>
+        <div id="reader-profile-content"></div>
+      </div>
+    </div>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="firebase-config.js?v=5"></script>
-    <script type="module" src="app.js?v=11"></script>
+    <script type="module" src="app.js?v=12"></script>
   </body>
 </html>

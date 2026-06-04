@@ -184,11 +184,14 @@ const state = {
   avatarPurchases: [],
   dailyDateKey: "",
   ranking: [],
+  globalChapters: [],
+  mangaRanking: [],
   databaseStats: {
     mangas: 0,
     chapters: 0,
   },
   search: "",
+  rankingSearch: "",
   toastTimer: null,
   liveRefreshTimer: null,
   liveUnsubscribers: [],
@@ -237,8 +240,11 @@ const dom = {
   pageCountInput: document.querySelector("#page-count-input"),
   readDateInput: document.querySelector("#read-date-input"),
   mangaList: document.querySelector("#manga-list"),
+  rankingSearch: document.querySelector("#ranking-search"),
   rankingSummary: document.querySelector("#ranking-summary"),
   rankingList: document.querySelector("#ranking-list"),
+  mangaRankingSummary: document.querySelector("#manga-ranking-summary"),
+  mangaRankingList: document.querySelector("#manga-ranking-list"),
   databaseStatus: document.querySelector("#database-status"),
   databaseUser: document.querySelector("#database-user"),
   databaseMangas: document.querySelector("#database-mangas"),
@@ -254,6 +260,9 @@ const dom = {
   closeShopModal: document.querySelector("#close-shop-modal"),
   shopPoints: document.querySelector("#shop-points"),
   shopGallery: document.querySelector("#shop-gallery"),
+  readerProfileModal: document.querySelector("#reader-profile-modal"),
+  closeReaderProfileModal: document.querySelector("#close-reader-profile-modal"),
+  readerProfileContent: document.querySelector("#reader-profile-content"),
   toast: document.querySelector("#toast"),
 };
 
@@ -489,6 +498,10 @@ function getAllRecords(storeName) {
 
   if (isApiDatabase() && storeName === "databaseStats") {
     return apiRequest("/api/database-stats");
+  }
+
+  if (isApiDatabase() && storeName === "chapters") {
+    return apiRequest("/api/chapters?all=1");
   }
 
   return runStore(storeName, "readonly", (store) => store.getAll());
@@ -1182,6 +1195,77 @@ function buildDatabaseStatsFromChapters(chapters) {
   };
 }
 
+function getLevelProgress(totalXp) {
+  const normalizedXp = Number(totalXp || 0);
+  const level = getLevelFromXp(normalizedXp);
+  const nextLevelXp = xpForLevel(level + 1);
+  const levelStartXp = xpForLevel(level);
+  const xpIntoLevel = normalizedXp - levelStartXp;
+  const xpNeeded = nextLevelXp - levelStartXp;
+
+  return {
+    level,
+    nextLevelXp,
+    xpIntoLevel,
+    xpNeeded,
+    fill: Math.min(100, Math.max(0, (xpIntoLevel / xpNeeded) * 100)),
+  };
+}
+
+function buildMangaRanking(chapters = []) {
+  const map = new Map();
+
+  chapters.forEach((chapter) => {
+    const mangaKey = chapter.mangaKey || slugify(chapter.mangaTitle);
+
+    if (!mangaKey) {
+      return;
+    }
+
+    const catalog = getCatalogByKey(mangaKey);
+    if (!map.has(mangaKey)) {
+      map.set(mangaKey, {
+        mangaKey,
+        title: getMangaTitleFallback(mangaKey, chapter.mangaTitle),
+        cover: catalog?.cover || chapter.cover || "",
+        author: catalog?.author || "Catalogo pessoal",
+        totalChapters: catalog?.totalChapters || 0,
+        releaseYear: catalog?.releaseYear || "",
+        status: catalog?.status || "Catalogo pessoal",
+        points: 0,
+        readers: new Set(),
+        latestReadAt: "",
+      });
+    }
+
+    const summary = map.get(mangaKey);
+    summary.points += 1;
+
+    if (chapter.userId) {
+      summary.readers.add(chapter.userId);
+    }
+
+    if (!summary.latestReadAt || new Date(chapter.readAt || 0) > new Date(summary.latestReadAt || 0)) {
+      summary.latestReadAt = chapter.readAt || "";
+    }
+  });
+
+  return Array.from(map.values())
+    .map((summary) => ({
+      ...summary,
+      readers: summary.readers.size,
+    }))
+    .sort((a, b) => {
+      return (
+        b.points - a.points ||
+        b.readers - a.readers ||
+        new Date(b.latestReadAt || 0) - new Date(a.latestReadAt || 0) ||
+        a.title.localeCompare(b.title, "pt-BR")
+      );
+    })
+    .map((summary, index) => ({ ...summary, position: index + 1 }));
+}
+
 function formatDate(value) {
   if (!value) {
     return "-";
@@ -1308,6 +1392,9 @@ function showAuth() {
   state.dailyClaims = [];
   state.avatarPurchases = [];
   state.dailyDateKey = "";
+  state.globalChapters = [];
+  state.mangaRanking = [];
+  state.rankingSearch = "";
   state.databaseStats = { mangas: 0, chapters: 0 };
   switchAuth("login");
   dom.authScreen.classList.remove("is-hidden");
@@ -1491,6 +1578,11 @@ async function refreshRanking(shouldRender = true) {
     const statsByUser = new Map();
     const databaseMangaKeys = new Set();
 
+    state.globalChapters = readSnapshots.docs
+      .map(mapFirebaseChapter)
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
+
     profileSnapshots.docs.forEach((profileDoc) => {
       const profile = profileDoc.data();
       statsByUser.set(profileDoc.id, {
@@ -1507,26 +1599,22 @@ async function refreshRanking(shouldRender = true) {
       });
     });
 
-    readSnapshots.docs.forEach((readDoc) => {
-      const read = readDoc.data();
-      const stats = statsByUser.get(read.userId);
-      const catalogChapter = getChapterByCatalogId(read.chapterId);
+    state.globalChapters.forEach((chapter) => {
+      const stats = statsByUser.get(chapter.userId);
 
-      if (catalogChapter) {
-        databaseMangaKeys.add(catalogChapter.mangaKey);
-      }
+      databaseMangaKeys.add(chapter.mangaKey);
 
-      if (!stats || !catalogChapter) {
+      if (!stats) {
         return;
       }
 
-      stats.totalXp += Number(catalogChapter.xp || 0);
-      stats.pages += Number(catalogChapter.pages || catalogChapter.xp || 0);
+      stats.totalXp += Number(chapter.xp || 0);
+      stats.pages += Number(chapter.pages || chapter.xp || 0);
       stats.chapters += 1;
-      stats.mangas.add(catalogChapter.mangaKey);
+      stats.mangas.add(chapter.mangaKey);
 
-      if (!stats.lastReadAt || new Date(read.readAt || read.createdAt || 0) > new Date(stats.lastReadAt)) {
-        stats.lastReadAt = read.readAt || read.createdAt || "";
+      if (!stats.lastReadAt || new Date(chapter.readAt || 0) > new Date(stats.lastReadAt)) {
+        stats.lastReadAt = chapter.readAt || "";
       }
     });
 
@@ -1543,7 +1631,7 @@ async function refreshRanking(shouldRender = true) {
       .map((entry, index) => ({ ...entry, position: index + 1 }));
     state.databaseStats = {
       mangas: databaseMangaKeys.size,
-      chapters: readSnapshots.size,
+      chapters: state.globalChapters.length,
     };
   } else if (isSupabaseDatabase()) {
     const { data, error } = await state.supabase.rpc("get_ranking");
@@ -1553,9 +1641,40 @@ async function refreshRanking(shouldRender = true) {
     }
 
     state.ranking = (data || []).map(mapSupabaseRanking);
+    try {
+      const { data: chapterData, error: chapterError } = await state.supabase
+        .from("read_chapters")
+        .select(`
+          id,
+          user_id,
+          read_at,
+          created_at,
+          chapter_catalog (
+            id,
+            manga_key,
+            manga_title,
+            cover,
+            chapter_number,
+            xp,
+            pages
+          )
+        `)
+        .order("read_at", { ascending: false });
+
+      if (chapterError) {
+        throw chapterError;
+      }
+
+      state.globalChapters = (chapterData || []).map(mapSupabaseChapter);
+    } catch (chapterError) {
+      console.warn("Nao consegui carregar capitulos globais do Supabase.", chapterError);
+      state.globalChapters = [...state.chapters];
+    }
     state.databaseStats = await getSupabaseDatabaseStats();
   } else if (isApiDatabase()) {
     state.ranking = await getAllRecords("ranking");
+    state.globalChapters = ((await getAllRecords("chapters")) || [])
+      .sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
     state.databaseStats = await getAllRecords("databaseStats") || {
       mangas: Math.max(0, ...state.ranking.map((entry) => Number(entry.mangas || 0))),
       chapters: state.ranking.reduce((total, entry) => total + Number(entry.chapters || 0), 0),
@@ -1564,7 +1683,8 @@ async function refreshRanking(shouldRender = true) {
     const users = await getAllRecords("users");
     const chapters = await getAllRecords("chapters");
     const statsByUser = new Map();
-    state.databaseStats = buildDatabaseStatsFromChapters(chapters);
+    state.globalChapters = chapters.sort((a, b) => new Date(b.readAt) - new Date(a.readAt));
+    state.databaseStats = buildDatabaseStatsFromChapters(state.globalChapters);
 
     users.forEach((user) => {
       statsByUser.set(user.id, {
@@ -1581,7 +1701,7 @@ async function refreshRanking(shouldRender = true) {
       });
     });
 
-    chapters.forEach((chapter) => {
+    state.globalChapters.forEach((chapter) => {
       const stats = statsByUser.get(chapter.userId);
       if (!stats) {
         return;
@@ -1609,6 +1729,8 @@ async function refreshRanking(shouldRender = true) {
       })
       .map((entry, index) => ({ ...entry, position: index + 1 }));
   }
+
+  state.mangaRanking = buildMangaRanking(state.globalChapters.length ? state.globalChapters : state.chapters);
 
   if (shouldRender) {
     renderAll();
@@ -1714,6 +1836,7 @@ function renderAll() {
   renderMangaOptions();
   renderMangaList();
   renderRanking();
+  renderMangaRanking();
   renderDatabase();
 }
 
@@ -1899,6 +2022,26 @@ function renderCover(summary) {
     .toUpperCase();
 
   return `<div class="manga-cover manga-cover-placeholder" aria-label="Capa de ${escapeHtml(title)}">${escapeHtml(initials || "ML")}</div>`;
+}
+
+function getTitleInitials(title) {
+  return String(title || "ML")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+function renderRankingMangaCover(summary) {
+  const title = getMangaTitleFallback(summary.mangaKey, summary.title);
+
+  if (summary.cover) {
+    return `<img class="manga-ranking-cover" src="${escapeHtml(summary.cover)}" alt="Capa de ${escapeHtml(title)}">`;
+  }
+
+  return `<span class="manga-ranking-cover manga-ranking-cover-placeholder" aria-label="Capa de ${escapeHtml(title)}">${escapeHtml(getTitleInitials(title))}</span>`;
 }
 
 function bindMangaListActions() {
@@ -2094,7 +2237,16 @@ function renderRanking() {
     return;
   }
 
-  dom.rankingSummary.textContent = `${state.ranking.length} usuarios`;
+  const query = slugify(state.rankingSearch);
+  const entries = query
+    ? state.ranking.filter((entry) => {
+      return slugify(`${entry.displayName} ${entry.login}`).includes(query);
+    })
+    : state.ranking;
+
+  dom.rankingSummary.textContent = query
+    ? `${entries.length}/${state.ranking.length} usuarios`
+    : `${state.ranking.length} usuarios`;
 
   if (!state.ranking.length) {
     dom.rankingList.innerHTML = `
@@ -2106,7 +2258,17 @@ function renderRanking() {
     return;
   }
 
-  dom.rankingList.innerHTML = state.ranking
+  if (!entries.length) {
+    dom.rankingList.innerHTML = `
+      <div class="empty-state">
+        <strong>Nenhum leitor encontrado</strong>
+        <span>Tente pesquisar por outro nome ou login.</span>
+      </div>
+    `;
+    return;
+  }
+
+  dom.rankingList.innerHTML = entries
     .map((entry) => {
       const avatar = getAvatarById(entry.avatarId);
       const level = getLevelFromXp(Number(entry.totalXp || 0));
@@ -2115,13 +2277,13 @@ function renderRanking() {
       return `
         <article class="ranking-item ${isCurrent ? "is-current" : ""}">
           <span class="ranking-position">${entry.position}</span>
-          <div class="ranking-user">
+          <button class="ranking-user reader-profile-button" type="button" data-reader-id="${escapeHtml(entry.id)}">
             <img src="${avatar.src}" alt="${escapeHtml(avatar.name)} - avatar">
             <div>
               <strong>${escapeHtml(entry.displayName)}</strong>
               <span>@${escapeHtml(entry.login)} - Level ${level} - ${escapeHtml(getLevelTitle(level))}</span>
             </div>
-          </div>
+          </button>
           <div class="ranking-score">
             <strong>${Number(entry.totalXp || 0)} XP</strong>
             <span>${Number(entry.chapters || 0)} capitulos - ${Number(entry.mangas || 0)} mangas</span>
@@ -2130,6 +2292,197 @@ function renderRanking() {
       `;
     })
     .join("");
+
+  dom.rankingList.querySelectorAll("[data-reader-id]").forEach((button) => {
+    button.addEventListener("click", () => openReaderProfileModal(button.dataset.readerId));
+  });
+}
+
+function renderMangaRanking() {
+  if (!state.user) {
+    return;
+  }
+
+  dom.mangaRankingSummary.textContent = `${state.mangaRanking.length} mangas`;
+
+  if (!state.mangaRanking.length) {
+    dom.mangaRankingList.innerHTML = `
+      <div class="empty-state">
+        <strong>Nenhum manga pontuou ainda</strong>
+        <span>Cada capitulo registrado vale 1 ponto para o manga.</span>
+      </div>
+    `;
+    return;
+  }
+
+  dom.mangaRankingList.innerHTML = state.mangaRanking
+    .map((entry) => {
+      const title = getMangaTitleFallback(entry.mangaKey, entry.title);
+
+      return `
+        <article class="ranking-item manga-ranking-item">
+          <span class="ranking-position">${entry.position}</span>
+          <div class="ranking-user">
+            ${renderRankingMangaCover(entry)}
+            <div>
+              <strong>${escapeHtml(title)}</strong>
+              <span>${escapeHtml(entry.author)}${entry.releaseYear ? ` - Ano: ${entry.releaseYear}` : ""}</span>
+            </div>
+          </div>
+          <div class="ranking-score">
+            <strong>${Number(entry.points || 0)} pontos</strong>
+            <span>${Number(entry.readers || 0)} leitores</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function getReaderChapters(readerId) {
+  const chapters = state.globalChapters.length ? state.globalChapters : state.chapters;
+
+  return chapters
+    .filter((chapter) => chapter.userId === readerId)
+    .sort((a, b) => new Date(b.readAt || 0) - new Date(a.readAt || 0));
+}
+
+function buildReaderMangaSummaries(chapters) {
+  const map = new Map();
+
+  chapters.forEach((chapter) => {
+    const mangaKey = chapter.mangaKey || slugify(chapter.mangaTitle);
+
+    if (!mangaKey) {
+      return;
+    }
+
+    if (!map.has(mangaKey)) {
+      const catalog = getCatalogByKey(mangaKey);
+      map.set(mangaKey, {
+        mangaKey,
+        title: getMangaTitleFallback(mangaKey, chapter.mangaTitle),
+        totalChapters: catalog?.totalChapters || 0,
+        chapters: 0,
+        maxChapter: 0,
+        latestReadAt: "",
+      });
+    }
+
+    const summary = map.get(mangaKey);
+    summary.chapters += 1;
+    summary.maxChapter = Math.max(summary.maxChapter, Number(chapter.chapterNumber || 0));
+
+    if (!summary.latestReadAt || new Date(chapter.readAt || 0) > new Date(summary.latestReadAt || 0)) {
+      summary.latestReadAt = chapter.readAt || "";
+    }
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => new Date(b.latestReadAt || 0) - new Date(a.latestReadAt || 0));
+}
+
+function openReaderProfileModal(readerId) {
+  const reader = state.ranking.find((entry) => entry.id === readerId);
+
+  if (!reader) {
+    showToast("Leitor nao encontrado no ranking.");
+    return;
+  }
+
+  const avatar = getAvatarById(reader.avatarId);
+  const chapters = getReaderChapters(reader.id);
+  const chapterStats = getStats(chapters);
+  const totalXp = Number(reader.totalXp ?? chapterStats.totalXp);
+  const chaptersCount = Number(reader.chapters ?? chapterStats.chapters);
+  const mangasCount = Number(reader.mangas ?? chapterStats.mangas);
+  const levelProgress = getLevelProgress(totalXp);
+  const mangaSummaries = buildReaderMangaSummaries(chapters).slice(0, 5);
+  const recentChapters = chapters.slice(0, 8);
+
+  dom.readerProfileContent.innerHTML = `
+    <section class="reader-profile-hero">
+      <img class="reader-profile-avatar" src="${avatar.src}" alt="${escapeHtml(avatar.name)} - avatar">
+      <div>
+        <p class="eyebrow">@${escapeHtml(reader.login)}</p>
+        <h3>${escapeHtml(reader.displayName)}</h3>
+        <div class="xp-bar reader-xp-bar" aria-label="Progresso de XP">
+          <span style="width: ${levelProgress.fill}%"></span>
+        </div>
+        <div class="progress-copy">
+          <span>Level ${levelProgress.level} - ${escapeHtml(getLevelTitle(levelProgress.level))}</span>
+          <span>${levelProgress.nextLevelXp - totalXp} XP para o level ${levelProgress.level + 1}</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="reader-profile-stats">
+      <article class="profile-card stat-card">
+        <span>XP total</span>
+        <strong>${totalXp}</strong>
+      </article>
+      <article class="profile-card stat-card">
+        <span>Capitulos</span>
+        <strong>${chaptersCount}</strong>
+      </article>
+      <article class="profile-card stat-card">
+        <span>Mangas</span>
+        <strong>${mangasCount}</strong>
+      </article>
+    </div>
+
+    <section class="reader-profile-section">
+      <div class="panel-heading">
+        <h3>Ultimos mangas lidos</h3>
+        <span class="pill">${mangaSummaries.length} mangas</span>
+      </div>
+      <div class="compact-manga-list">
+        ${mangaSummaries.length ? mangaSummaries.map((summary) => `
+          <div class="compact-manga-item">
+            <div>
+              <strong>${escapeHtml(summary.title)}</strong>
+              <span>${formatReadProgress(summary.chapters, summary.totalChapters)} - ultimo capitulo ${summary.maxChapter}</span>
+            </div>
+            <span>${formatDate(summary.latestReadAt)}</span>
+          </div>
+        `).join("") : `
+          <div class="empty-state">
+            <strong>Nenhum manga recente</strong>
+            <span>Quando esse leitor registrar capitulos, eles aparecem aqui.</span>
+          </div>
+        `}
+      </div>
+    </section>
+
+    <section class="reader-profile-section">
+      <div class="panel-heading">
+        <h3>Historico recente</h3>
+        <span class="pill">${recentChapters.length} capitulos</span>
+      </div>
+      <div class="history-list">
+        ${recentChapters.length ? recentChapters.map((chapter) => `
+          <div class="history-item">
+            <div>
+              <strong>${escapeHtml(chapter.mangaTitle)} - Capitulo ${chapter.chapterNumber}</strong>
+              <span>${formatDate(chapter.readAt)}</span>
+            </div>
+            <span>+${Number(chapter.xp || 0)} XP</span>
+          </div>
+        `).join("") : `
+          <div class="empty-state">
+            <strong>Nenhum capitulo recente</strong>
+            <span>O ranking ainda nao tem detalhes de leitura desse usuario.</span>
+          </div>
+        `}
+      </div>
+    </section>
+  `;
+
+  dom.readerProfileModal.classList.remove("is-hidden");
+}
+
+function closeReaderProfileModal() {
+  dom.readerProfileModal.classList.add("is-hidden");
 }
 
 function renderDatabase() {
@@ -3271,6 +3624,10 @@ dom.mangaSearch.addEventListener("input", () => {
   state.search = dom.mangaSearch.value;
   renderMangaList();
 });
+dom.rankingSearch.addEventListener("input", () => {
+  state.rankingSearch = dom.rankingSearch.value;
+  renderRanking();
+});
 dom.mangaTitleInput.addEventListener("change", updatePagesFromTitle);
 dom.chapterNumberInput.addEventListener("input", updatePagesFromTitle);
 dom.exportButton.addEventListener("click", exportCurrentUserData);
@@ -3288,6 +3645,12 @@ dom.closeShopModal.addEventListener("click", closeShopModal);
 dom.shopModal.addEventListener("click", (event) => {
   if (event.target === dom.shopModal) {
     closeShopModal();
+  }
+});
+dom.closeReaderProfileModal.addEventListener("click", closeReaderProfileModal);
+dom.readerProfileModal.addEventListener("click", (event) => {
+  if (event.target === dom.readerProfileModal) {
+    closeReaderProfileModal();
   }
 });
 

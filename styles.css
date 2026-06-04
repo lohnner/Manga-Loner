@@ -618,6 +618,19 @@ img {
   gap: 12px;
 }
 
+.reader-profile-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.reader-profile-button:hover strong {
+  color: var(--accent);
+}
+
 .ranking-user img {
   width: 48px;
   height: 48px;
@@ -625,6 +638,24 @@ img {
   object-fit: cover;
   border-radius: 8px;
   background: var(--media-bg);
+}
+
+.ranking-user img.manga-ranking-cover,
+.manga-ranking-cover {
+  width: 48px;
+  height: 64px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--media-bg);
+}
+
+.manga-ranking-cover-placeholder {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 950;
+  background: linear-gradient(135deg, var(--ink), var(--blue));
 }
 
 .ranking-user strong,
@@ -656,6 +687,55 @@ img {
 .ranking-item.is-current {
   border-color: rgba(183, 43, 43, 0.42);
   box-shadow: 0 0 0 3px rgba(183, 43, 43, 0.1);
+}
+
+.reader-profile-panel {
+  width: min(820px, 100%);
+}
+
+.reader-profile-hero {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--tile-bg);
+}
+
+.reader-profile-avatar {
+  width: 118px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--media-bg);
+}
+
+.reader-profile-hero h3 {
+  margin: 0;
+  font-size: 1.9rem;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.reader-xp-bar {
+  margin-top: 14px;
+}
+
+.reader-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.reader-profile-section {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--tile-bg);
 }
 
 .compact-manga-item strong,
@@ -1098,7 +1178,7 @@ img {
   }
 
   .nav-tabs {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .nav-button {
@@ -1177,6 +1257,7 @@ img {
   }
 
   .identity-card,
+  .reader-profile-hero,
   .compact-manga-item,
   .history-item,
   .daily-card,
@@ -1204,6 +1285,10 @@ img {
   .ranking-score {
     min-width: 0;
     text-align: left;
+  }
+
+  .reader-profile-stats {
+    grid-template-columns: 1fr;
   }
 
   .identity-card {
